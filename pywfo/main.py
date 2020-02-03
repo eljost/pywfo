@@ -1,9 +1,9 @@
+#!/usr/bin/env python3
+
 # http://dx.doi.org/10.1021/acs.jctc.5b01148
 
-import h5py
+import itertools as it
 import numpy as np
-
-np.set_printoptions(suppress=True, precision=4)
 
 
 def get_mo_ovlp(shape):
@@ -29,6 +29,8 @@ def perturb_mat(mat, scale=5e-2):
 
 
 def run():
+    np.set_printoptions(suppress=True, precision=4)
+
     # 4 MOs, 2 states
     dim_ = 4
     occ = 2
@@ -50,6 +52,18 @@ def run():
             exc_from, exc_to = exc
         mo_inds[exc_from] = exc_to + occ
         return mos[mo_inds]
+
+    def get_sd_mo_inds(exc=None):
+        """Get MOs to form a Slater determinant for the given excitations."""
+        if exc is None:
+            return [mo_mask.copy(), ]
+
+        all_sd_mos = list()
+        for exc_from, exc_to in zip(*exc):
+            mo_inds = mo_mask.copy()
+            mo_inds[exc_from] = exc_to + occ
+            all_sd_mos.append(mo_inds)
+        return np.array(all_sd_mos)
 
     moovlp = get_mo_ovlp((dim_, dim_))
 
@@ -77,22 +91,28 @@ def run():
 
     bra_cis, ket_cis = cis_
 
-    # Coefficients above threshold per state
-    bra_exc = [np.where(_ > ci_thresh) for _ in bra_cis]
-    ket_exc = [np.where(_ > ci_thresh) for _ in ket_cis]
+    # c = np.zeros((2,2))
+    # c[1,0] = .7
+    # c[1,1] = .6
+    # ex_ = np.nonzero(c > ci_thresh)
+    # _ = get_sd_mo_inds(bra_mos, exc=ex_)
 
-    # MOs that make up the Slater determinants
-    bra_sd_mos = [get_sd_mos(bra_mos, exc) for exc in bra_exc]
-    ket_sd_mos = [get_sd_mos(ket_mos, exc) for exc in ket_exc]
-    import pdb; pdb.set_trace()
-
-
-    sd_mos = get_sd_mos(bra_mos, bra_exc[0])
-    # MO overlaps
-    mo_ovlp_mat = moovlp(sd_mos, sd_mos, S_AO)
-    # Slater determinant overlap
-    sd_ovlp = np.linalg.det(mo_ovlp_mat)
-    import pdb; pdb.set_trace()
+    # Iterate over pairs of states and form the Slater determinants
+    for bra_state, ket_state in it.product(bra_cis, ket_cis):
+        bra_exc = np.nonzero(bra_state > ci_thresh)
+        ket_exc = np.nonzero(ket_state > ci_thresh)
+        bra_mo_inds = get_sd_mo_inds(bra_exc)
+        ket_mo_inds = get_sd_mo_inds(ket_exc)
+        # Slater determinant overlaps
+        for bra_sd, ket_sd in it.product(bra_mo_inds, ket_mo_inds):
+            print("bra_sd", bra_sd)
+            print("ket_sd", ket_sd)
+            b = bra_mos[bra_sd]
+            k = ket_mos[ket_sd]
+            ovlp_mat = moovlp(b, k, S_AO)
+            ovlp = np.linalg.det(ovlp_mat)
+            print(ovlp)
+            print()
 
 
 if __name__ == "__main__":
