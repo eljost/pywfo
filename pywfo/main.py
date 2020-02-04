@@ -28,8 +28,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
     occ_mos = np.arange(occ)
 
     def get_sd_mo_inds(exc=None):
-        """Returns MOs indices that make up the Slater determinant(s) for the
-        given excitation(s)."""
+        """Alpha & beta MO indices for (excited) Slater determinants."""
         if exc is None:
             return (occ_mos, ), (occ_mos, )
 
