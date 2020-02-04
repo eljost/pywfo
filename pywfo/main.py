@@ -73,6 +73,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
         # CI coefficients
         bra_coeffs = bra_state[bra_exc]
         ket_coeffs = ket_state[ket_exc]
+
         # Spin adapt the CI coefficients.
         # Every coefficient yields two spin adapted coefficients
         # weighted by 1/sqrt(2).
@@ -95,10 +96,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
         # Contract with ket coefficients
         ket_contr = np.einsum("k,bk,bk->b", ket_coeffs, alpha_ovlps, beta_ovlps)
         braket_ovlp = (bra_coeffs * ket_contr).sum()
-        # _, __ = np.einsum_path("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
-        # import pdb; pdb.set_trace()
-        # braket_ovlp = np.einsum("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
-        # print(_)
+        # _ = np.einsum_path("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
         ovlps.append(braket_ovlp)
     ovlps = np.array(ovlps)
     ovlps = ovlps.reshape(len(bra_ci), -1)
