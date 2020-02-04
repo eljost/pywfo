@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-# http://dx.doi.org/10.1021/acs.jctc.5b01148
 
 import itertools as it
 import numpy as np
