@@ -1,8 +1,7 @@
 from pysisyphus.calculators.WFOWrapper2 import WFOWrapper2
 import numpy as np
 
-from main import overlaps
-
+from ..main import overlaps
 
 
 def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
@@ -20,10 +19,10 @@ def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
             handle.write(S_AO_str)
 
 
-
-
 def perturb_mat(mat, scale=2e-1):
-    """Add (small) random perturbations to the given matrix."""
+    """Add (small) random perturbations to the given matrix.
+    This may simulate a small change in the MO-coefficients at a different
+    geometry."""
     return mat + np.random.rand(*mat.shape)*scale
 
 
