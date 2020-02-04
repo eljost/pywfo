@@ -56,31 +56,29 @@ def run():
     ci_thresh = .5
     states = 2
 
+    # Number of virtual orbitals and electrons (total, alpha, beta)
     virt = dim_ - occ
-    nel = occ
-    # Only closed shell for now
-    assert (nel % 2) == 0
-    nalpha = nel // 2
-    nbeta = nel // 2
-    # Indexes the ground state MOs without any excitation
-    mo_mask = np.arange(nel)
+    nel = 2*occ
+    nalpha = occ
+    nbeta = nalpha
+
+    # Indices the occupied MOs
+    mo_mask = np.arange(occ)
     # One row per electron/MO, one column per basis function
     sd_mos_shape = (nel, dim_)
-    alpha_mask = mo_mask[::2]
-    beta_mask = mo_mask[1::2]
 
     def get_sd_mo_inds(exc=None):
         """Get MOs to form a Slater determinant for the given excitations."""
         if exc is None:
-            return (alpha_mask.copy(), ), (beta_mask.copy())
+            return (mo_mask, ), (mo_mask, )
 
         # Assume excitation of beta electron
-        all_sd_mos = list()
+        all_beta_sd_mos = list()
         for exc_from, exc_to in zip(*exc):
-            beta_inds = beta_mask.copy()
-            beta_inds[exc_from-nalpha] = exc_to + occ
-            all_sd_mos.append(beta_inds)
-        return (alpha_mask.copy(), ), np.array(all_sd_mos)
+            beta_inds = mo_mask.copy()
+            beta_inds[exc_from] = exc_to + occ
+            all_beta_sd_mos.append(beta_inds)
+        return (mo_mask, ), all_beta_sd_mos
 
     moovlp = get_mo_ovlp((dim_, dim_))
 
@@ -125,13 +123,9 @@ def run():
     # ex_ = np.nonzero(c > ci_thresh)
     # _ = get_sd_mo_inds(bra_mos, exc=ex_)
 
-    # def get_sd_ovlps(bra_inds, ket_inds, bra_coeffs, ket_coeffs):
     def get_sd_ovlps(bra_inds, ket_inds):
         ovlp = 0.
-        sd_prod = it.product(bra_inds, ket_inds)
-        coeff_prod = it.product(bra_coeffs, ket_coeffs)
         for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
-        # for (bra_sd, ket_sd), (bra_coeff, ket_coeff) in zip(sd_prod, coeff_prod):
             b = bra_mos[bra_sd]
             k = ket_mos[ket_sd]
             ovlp_mat = moovlp(b, k, S_AO)
@@ -147,6 +141,7 @@ def run():
             ovlps.append(np.linalg.det(ovlp_mat))
         return ovlps
 
+    import pdb; pdb.set_trace()
     ovlps = list()
 
     # Iterate over pairs of states and form the Slater determinants
