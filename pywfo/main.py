@@ -7,23 +7,6 @@ import io
 import itertools as it
 import numpy as np
 
-from pysisyphus.calculators.WFOWrapper2 import WFOWrapper2
-
-
-def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
-    for fn, mos in zip("a_mo b_mo".split(), (a_mo, b_mo)):
-        mo_str = WFOWrapper2.fake_turbo_mos(mos)
-        with open(f"{out_dir}/{fn}", "w") as handle:
-            handle.write(mo_str)
-
-    if S_AO is not None:
-        a_AOs, b_AOs = S_AO.shape
-        with io.StringIO() as _:
-            np.savetxt(_, S_AO)
-            S_AO_str = f"{a_AOs} {b_AOs}\n{_.getvalue()}"
-        with open(f"{out_dir}/ao_ovlp", "w") as handle:
-            handle.write(S_AO_str)
-
 
 def get_mo_ovlp(shape):
     _ = np.zeros(shape)
@@ -42,49 +25,40 @@ def get_mo_ovlp(shape):
     return moovlp
 
 
-def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5):
-    # 4 MOs, 2 states
+def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False):
     assert bra_mos.shape == ket_mos.shape
     assert bra_ci.shape == ket_ci.shape
 
     dim_ = bra_mos.shape[0]
-    states = bra_ci.shape[0]
 
-    # Number of virtual orbitals and electrons (total, alpha, beta)
-    virt = dim_ - occ
+    # Number of electrons (total, alpha, beta)
     nel = 2*occ
     nalpha = occ
     nbeta = nalpha
 
     # Indices of the occupied MOs
-    mo_mask = np.arange(occ)
+    occ_mos = np.arange(occ)
 
     def get_sd_mo_inds(exc=None):
-        """Get MOs to form a Slater determinant for the given excitations."""
+        """Returns MOs indices that make up the Slater determinant(s) for the
+        given excitation(s)."""
         if exc is None:
-            return (mo_mask, ), (mo_mask, )
+            return (occ_mos, ), (occ_mos, )
 
         alpha_mos = list()
         beta_mos = list()
         exc_sd_mo_inds = list()
         for exc_from, exc_to in zip(*exc):
-            mo_inds = mo_mask.copy()
+            mo_inds = occ_mos.copy()
             mo_inds[exc_from] = exc_to + occ
-            alpha_mos.extend([mo_mask, mo_inds])
-            beta_mos.extend([mo_inds, mo_mask])
+            alpha_mos.extend([occ_mos, mo_inds])
+            beta_mos.extend([mo_inds, occ_mos])
         return alpha_mos, beta_mos
 
     moovlp = get_mo_ovlp((dim_, dim_))
 
     bra_mos_inv = np.linalg.inv(bra_mos)
     S_AO = bra_mos_inv.dot(bra_mos_inv.T)
-
-    print("Bra MOs")
-    print(bra_mos)
-    print("Ket MOs")
-    print(ket_mos)
-
-    write_ref_data(bra_mos, ket_mos, S_AO)
 
     def get_sd_ovlps(bra_inds, ket_inds):
         ovlps = list()
@@ -136,6 +110,5 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5):
         ovlps.append(braket_ovlp)
     ovlps = np.array(ovlps)
     ovlps = ovlps.reshape(len(bra_ci), -1)
-    print(ovlps)
 
     return ovlps
