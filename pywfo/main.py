@@ -42,19 +42,13 @@ def get_mo_ovlp(shape):
     return moovlp
 
 
-def perturb_mat(mat, scale=2e-1):
-    """Add (small) random perturbations to the given matrix."""
-    return mat + np.random.rand(*mat.shape)*scale
-
-
-def run():
-    np.set_printoptions(suppress=True, precision=6)
-
+def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5):
     # 4 MOs, 2 states
-    dim_ = 4
-    occ = 2
-    ci_thresh = .5
-    states = 2
+    assert bra_mos.shape == ket_mos.shape
+    assert bra_ci.shape == ket_ci.shape
+
+    dim_ = bra_mos.shape[0]
+    states = bra_ci.shape[0]
 
     # Number of virtual orbitals and electrons (total, alpha, beta)
     virt = dim_ - occ
@@ -82,16 +76,6 @@ def run():
 
     moovlp = get_mo_ovlp((dim_, dim_))
 
-    # Construct dummy MOs
-    np.random.seed(20180325)
-    _ = np.random.rand(dim_, dim_)
-    bra_mos, _ = np.linalg.qr(_, mode="complete")
-    # MOs are given per row
-    bra_mos = bra_mos.T
-    ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
-    ket_mos = ket_mos.T
-    # ket_mos = bra_mos
-
     bra_mos_inv = np.linalg.inv(bra_mos)
     S_AO = bra_mos_inv.dot(bra_mos_inv.T)
 
@@ -101,27 +85,6 @@ def run():
     print(ket_mos)
 
     write_ref_data(bra_mos, ket_mos, S_AO)
-
-    # CI coefficients
-    cis_ = np.zeros((2, states, occ, virt))
-    # Bra
-    cis_[0,0,1,0] = 1
-    cis_[0,1,1,1] = 1
-
-    # Ket
-    cis_[1,0,1,1] = 1
-    cis_[1,1,1,0] = 1
-    
-    print("CI coefficients")
-    print(cis_)
-
-    bra_cis, ket_cis = cis_
-
-    # c = np.zeros((2,2))
-    # c[1,0] = .7
-    # c[1,1] = .6
-    # ex_ = np.nonzero(c > ci_thresh)
-    # _ = get_sd_mo_inds(bra_mos, exc=ex_)
 
     def get_sd_ovlps(bra_inds, ket_inds):
         ovlps = list()
@@ -133,25 +96,30 @@ def run():
         return ovlps
 
     ovlps = list()
-    # Iterate over pairs of states and form the Slater determinants
     _ = 1/(2**0.5)
     spin_adapt = np.array((_, -_))[None,:]
-    for bra_state, ket_state in it.product(bra_cis, ket_cis):
+    # Iterate over pairs of states
+    for bra_state, ket_state in it.product(bra_ci, ket_ci):
+        # Select CI coefficients above the given threshold
         bra_exc = np.nonzero(bra_state > ci_thresh)
         ket_exc = np.nonzero(ket_state > ci_thresh)
 
         # CI coefficients
         bra_coeffs = bra_state[bra_exc]
         ket_coeffs = ket_state[ket_exc]
-        # Spin adaption. Every coefficient yields two spin adapted
-        bra_coeffs = (np.repeat(bra_coeffs, 2).reshape(-1, 2) * spin_adapt).flatten()
-        ket_coeffs = (np.repeat(ket_coeffs, 2).reshape(-1, 2) * spin_adapt).flatten()
+        # Spin adapt the CI coefficients.
+        # Every coefficient yields two spin adapted coefficients
+        # weighted by 1/sqrt(2).
+        bra_coeffs = (bra_coeffs[:,None] * spin_adapt).flatten()
+        ket_coeffs = (ket_coeffs[:,None] * spin_adapt).flatten()
 
-        # MO indices of alpha and beta SDs
+        # Get the MO indices that make up the (excited) Slater determinants,
+        # separated by spin.
         bra_alpha, bra_beta = get_sd_mo_inds(bra_exc)
         ket_alpha, ket_beta = get_sd_mo_inds(ket_exc)
 
-        # Slater determinant overlaps
+        # Calculate the overlap between the SDs for alpha and beta
+        # orbitals separately.
         alpha_ovlps = get_sd_ovlps(bra_alpha, ket_alpha)
         beta_ovlps = get_sd_ovlps(bra_beta, ket_beta)
 
@@ -167,9 +135,7 @@ def run():
         # print(_)
         ovlps.append(braket_ovlp)
     ovlps = np.array(ovlps)
-    ovlps = ovlps.reshape(len(bra_cis), -1)
+    ovlps = ovlps.reshape(len(bra_ci), -1)
     print(ovlps)
 
-
-if __name__ == "__main__":
-    run()
+    return ovlps
