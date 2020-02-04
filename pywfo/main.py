@@ -2,8 +2,27 @@
 
 # http://dx.doi.org/10.1021/acs.jctc.5b01148
 
+import io
+
 import itertools as it
 import numpy as np
+
+from pysisyphus.calculators.WFOWrapper2 import WFOWrapper2
+
+
+def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
+    for fn, mos in zip("a_mo b_mo".split(), (a_mo, b_mo)):
+        mo_str = WFOWrapper2.fake_turbo_mos(mos)
+        with open(f"{out_dir}/{fn}", "w") as handle:
+            handle.write(mo_str)
+
+    if S_AO is not None:
+        a_AOs, b_AOs = S_AO.shape
+        with io.StringIO() as _:
+            np.savetxt(_, S_AO)
+            S_AO_str = f"{a_AOs} {b_AOs}\n{_.getvalue()}"
+        with open(f"{out_dir}/ao_ovlp", "w") as handle:
+            handle.write(S_AO_str)
 
 
 def get_mo_ovlp(shape):
@@ -23,13 +42,13 @@ def get_mo_ovlp(shape):
     return moovlp
 
 
-def perturb_mat(mat, scale=5e-2):
+def perturb_mat(mat, scale=2e-1):
     """Add (small) random perturbations to the given matrix."""
     return mat + np.random.rand(*mat.shape)*scale
 
 
 def run():
-    np.set_printoptions(suppress=True, precision=4)
+    np.set_printoptions(suppress=True, precision=6)
 
     # 4 MOs, 2 states
     dim_ = 4
@@ -39,31 +58,29 @@ def run():
 
     virt = dim_ - occ
     nel = occ
+    # Only closed shell for now
+    assert (nel % 2) == 0
+    nalpha = nel // 2
+    nbeta = nel // 2
     # Indexes the ground state MOs without any excitation
     mo_mask = np.arange(nel)
     # One row per electron/MO, one column per basis function
     sd_mos_shape = (nel, dim_)
-
-    def get_sd_mos(mos, exc=None):
-        """Get MOs to form a Slater determinant for the given excitations."""
-        sd_mos = np.zeros(sd_mos_shape)
-        mo_inds = mo_mask.copy()
-        if exc:
-            exc_from, exc_to = exc
-        mo_inds[exc_from] = exc_to + occ
-        return mos[mo_inds]
+    alpha_mask = mo_mask[::2]
+    beta_mask = mo_mask[1::2]
 
     def get_sd_mo_inds(exc=None):
         """Get MOs to form a Slater determinant for the given excitations."""
         if exc is None:
-            return [mo_mask.copy(), ]
+            return (alpha_mask.copy(), ), (beta_mask.copy())
 
+        # Assume excitation of beta electron
         all_sd_mos = list()
         for exc_from, exc_to in zip(*exc):
-            mo_inds = mo_mask.copy()
-            mo_inds[exc_from] = exc_to + occ
-            all_sd_mos.append(mo_inds)
-        return np.array(all_sd_mos)
+            beta_inds = beta_mask.copy()
+            beta_inds[exc_from-nalpha] = exc_to + occ
+            all_sd_mos.append(beta_inds)
+        return (alpha_mask.copy(), ), np.array(all_sd_mos)
 
     moovlp = get_mo_ovlp((dim_, dim_))
 
@@ -73,11 +90,19 @@ def run():
     bra_mos, _ = np.linalg.qr(_, mode="complete")
     # MOs are given per row
     bra_mos = bra_mos.T
-    ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos), mode="complete")
+    ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
     ket_mos = ket_mos.T
+    # ket_mos = bra_mos
 
     bra_mos_inv = np.linalg.inv(bra_mos)
     S_AO = bra_mos_inv.dot(bra_mos_inv.T)
+
+    print("Bra MOs")
+    print(bra_mos)
+    print("Ket MOs")
+    print(ket_mos)
+
+    write_ref_data(bra_mos, ket_mos, S_AO)
 
     # CI coefficients
     cis_ = np.zeros((2, states, occ, virt))
@@ -88,6 +113,9 @@ def run():
     # Ket
     cis_[1,0,1,1] = 1
     cis_[1,1,1,0] = 1
+    
+    print("CI coefficients")
+    print(cis_)
 
     bra_cis, ket_cis = cis_
 
@@ -97,22 +125,32 @@ def run():
     # ex_ = np.nonzero(c > ci_thresh)
     # _ = get_sd_mo_inds(bra_mos, exc=ex_)
 
+    def get_sd_ovlps(bra_inds, ket_inds):
+        ovlp = 0.
+        for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
+            b = bra_mos[bra_sd]
+            k = ket_mos[ket_sd]
+            ovlp_mat = moovlp(b, k, S_AO)
+            ovlp += np.linalg.det(ovlp_mat)
+        return ovlp
+
+    ovlps = list()
+
     # Iterate over pairs of states and form the Slater determinants
     for bra_state, ket_state in it.product(bra_cis, ket_cis):
         bra_exc = np.nonzero(bra_state > ci_thresh)
         ket_exc = np.nonzero(ket_state > ci_thresh)
-        bra_mo_inds = get_sd_mo_inds(bra_exc)
-        ket_mo_inds = get_sd_mo_inds(ket_exc)
+        bra_alpha, bra_beta = get_sd_mo_inds(bra_exc)
+        ket_alpha, ket_beta = get_sd_mo_inds(ket_exc)
+
         # Slater determinant overlaps
-        for bra_sd, ket_sd in it.product(bra_mo_inds, ket_mo_inds):
-            print("bra_sd", bra_sd)
-            print("ket_sd", ket_sd)
-            b = bra_mos[bra_sd]
-            k = ket_mos[ket_sd]
-            ovlp_mat = moovlp(b, k, S_AO)
-            ovlp = np.linalg.det(ovlp_mat)
-            print(ovlp)
-            print()
+        alpha_ovlps = get_sd_ovlps(bra_alpha, ket_alpha)
+        beta_ovlps = get_sd_ovlps(bra_beta, ket_beta)
+        braket_ovlp = alpha_ovlps * beta_ovlps
+        ovlps.append(braket_ovlp)
+    ovlps = np.array(ovlps)
+    ovlps = ovlps.reshape(len(bra_cis), -1)
+    print(ovlps)
 
 
 if __name__ == "__main__":
