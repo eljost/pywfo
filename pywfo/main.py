@@ -2,8 +2,6 @@
 
 # http://dx.doi.org/10.1021/acs.jctc.5b01148
 
-import io
-
 import itertools as it
 import numpy as np
 
@@ -31,11 +29,6 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
 
     dim_ = bra_mos.shape[0]
 
-    # Number of electrons (total, alpha, beta)
-    nel = 2*occ
-    nalpha = occ
-    nbeta = nalpha
-
     # Indices of the occupied MOs
     occ_mos = np.arange(occ)
 
@@ -47,7 +40,6 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
 
         alpha_mos = list()
         beta_mos = list()
-        exc_sd_mo_inds = list()
         for exc_from, exc_to in zip(*exc):
             mo_inds = occ_mos.copy()
             mo_inds[exc_from] = exc_to + occ
@@ -71,7 +63,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
 
     ovlps = list()
     _ = 1/(2**0.5)
-    spin_adapt = np.array((_, -_))[None,:]
+    spin_adapt = np.array((_, -_))[None, :]
     # Iterate over pairs of states
     for bra_state, ket_state in it.product(bra_ci, ket_ci):
         # Select CI coefficients above the given threshold
@@ -84,8 +76,8 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
         # Spin adapt the CI coefficients.
         # Every coefficient yields two spin adapted coefficients
         # weighted by 1/sqrt(2).
-        bra_coeffs = (bra_coeffs[:,None] * spin_adapt).flatten()
-        ket_coeffs = (ket_coeffs[:,None] * spin_adapt).flatten()
+        bra_coeffs = (bra_coeffs[:, None] * spin_adapt).flatten()
+        ket_coeffs = (ket_coeffs[:, None] * spin_adapt).flatten()
 
         # Get the MO indices that make up the (excited) Slater determinants,
         # separated by spin.
