@@ -70,13 +70,15 @@ def run():
         if exc is None:
             return (mo_mask, ), (mo_mask, )
 
-        # Assume excitation of beta electron
-        all_beta_sd_mos = list()
+        alpha_mos = list()
+        beta_mos = list()
+        exc_sd_mo_inds = list()
         for exc_from, exc_to in zip(*exc):
-            beta_inds = mo_mask.copy()
-            beta_inds[exc_from] = exc_to + occ
-            all_beta_sd_mos.append(beta_inds)
-        return (mo_mask, ), all_beta_sd_mos
+            mo_inds = mo_mask.copy()
+            mo_inds[exc_from] = exc_to + occ
+            alpha_mos.extend([mo_mask, mo_inds])
+            beta_mos.extend([mo_inds, mo_mask])
+        return alpha_mos, beta_mos
 
     moovlp = get_mo_ovlp((dim_, dim_))
 
@@ -132,6 +134,8 @@ def run():
 
     ovlps = list()
     # Iterate over pairs of states and form the Slater determinants
+    _ = 1/(2**0.5)
+    spin_adapt = np.array((_, -_))[None,:]
     for bra_state, ket_state in it.product(bra_cis, ket_cis):
         bra_exc = np.nonzero(bra_state > ci_thresh)
         ket_exc = np.nonzero(ket_state > ci_thresh)
@@ -139,6 +143,9 @@ def run():
         # CI coefficients
         bra_coeffs = bra_state[bra_exc]
         ket_coeffs = ket_state[ket_exc]
+        # Spin adaption. Every coefficient yields two spin adapted
+        bra_coeffs = (np.repeat(bra_coeffs, 2).reshape(-1, 2) * spin_adapt).flatten()
+        ket_coeffs = (np.repeat(ket_coeffs, 2).reshape(-1, 2) * spin_adapt).flatten()
 
         # MO indices of alpha and beta SDs
         bra_alpha, bra_beta = get_sd_mo_inds(bra_exc)
@@ -154,6 +161,10 @@ def run():
         # Contract with ket coefficients
         ket_contr = np.einsum("k,bk,bk->b", ket_coeffs, alpha_ovlps, beta_ovlps)
         braket_ovlp = (bra_coeffs * ket_contr).sum()
+        # _, __ = np.einsum_path("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
+        # import pdb; pdb.set_trace()
+        # braket_ovlp = np.einsum("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
+        # print(_)
         ovlps.append(braket_ovlp)
     ovlps = np.array(ovlps)
     ovlps = ovlps.reshape(len(bra_cis), -1)
