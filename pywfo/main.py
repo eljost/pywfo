@@ -125,14 +125,27 @@ def run():
     # ex_ = np.nonzero(c > ci_thresh)
     # _ = get_sd_mo_inds(bra_mos, exc=ex_)
 
+    # def get_sd_ovlps(bra_inds, ket_inds, bra_coeffs, ket_coeffs):
     def get_sd_ovlps(bra_inds, ket_inds):
         ovlp = 0.
+        sd_prod = it.product(bra_inds, ket_inds)
+        coeff_prod = it.product(bra_coeffs, ket_coeffs)
+        for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
+        # for (bra_sd, ket_sd), (bra_coeff, ket_coeff) in zip(sd_prod, coeff_prod):
+            b = bra_mos[bra_sd]
+            k = ket_mos[ket_sd]
+            ovlp_mat = moovlp(b, k, S_AO)
+            ovlp += bra_coeff * ket_coeff * np.linalg.det(ovlp_mat)
+        return ovlp
+
+    def get_sd_ovlps(bra_inds, ket_inds):
+        ovlps = list()
         for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
             b = bra_mos[bra_sd]
             k = ket_mos[ket_sd]
             ovlp_mat = moovlp(b, k, S_AO)
-            ovlp += np.linalg.det(ovlp_mat)
-        return ovlp
+            ovlps.append(np.linalg.det(ovlp_mat))
+        return ovlps
 
     ovlps = list()
 
@@ -140,13 +153,25 @@ def run():
     for bra_state, ket_state in it.product(bra_cis, ket_cis):
         bra_exc = np.nonzero(bra_state > ci_thresh)
         ket_exc = np.nonzero(ket_state > ci_thresh)
+
+        # CI coefficients
+        bra_coeffs = bra_state[bra_exc]
+        ket_coeffs = ket_state[ket_exc]
+
+        # MO indices of alpha and beta SDs
         bra_alpha, bra_beta = get_sd_mo_inds(bra_exc)
         ket_alpha, ket_beta = get_sd_mo_inds(ket_exc)
 
         # Slater determinant overlaps
         alpha_ovlps = get_sd_ovlps(bra_alpha, ket_alpha)
         beta_ovlps = get_sd_ovlps(bra_beta, ket_beta)
-        braket_ovlp = alpha_ovlps * beta_ovlps
+
+        alpha_ovlps = np.reshape(alpha_ovlps, (-1, ket_coeffs.size))
+        beta_ovlps = np.reshape(beta_ovlps, (-1, ket_coeffs.size))
+
+        # Contract with ket coefficients
+        ket_contr = np.einsum("k,bk,bk->b", ket_coeffs, alpha_ovlps, beta_ovlps)
+        braket_ovlp = (bra_coeffs * ket_contr).sum()
         ovlps.append(braket_ovlp)
     ovlps = np.array(ovlps)
     ovlps = ovlps.reshape(len(bra_cis), -1)
