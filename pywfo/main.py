@@ -62,10 +62,8 @@ def run():
     nalpha = occ
     nbeta = nalpha
 
-    # Indices the occupied MOs
+    # Indices of the occupied MOs
     mo_mask = np.arange(occ)
-    # One row per electron/MO, one column per basis function
-    sd_mos_shape = (nel, dim_)
 
     def get_sd_mo_inds(exc=None):
         """Get MOs to form a Slater determinant for the given excitations."""
@@ -124,15 +122,6 @@ def run():
     # _ = get_sd_mo_inds(bra_mos, exc=ex_)
 
     def get_sd_ovlps(bra_inds, ket_inds):
-        ovlp = 0.
-        for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
-            b = bra_mos[bra_sd]
-            k = ket_mos[ket_sd]
-            ovlp_mat = moovlp(b, k, S_AO)
-            ovlp += bra_coeff * ket_coeff * np.linalg.det(ovlp_mat)
-        return ovlp
-
-    def get_sd_ovlps(bra_inds, ket_inds):
         ovlps = list()
         for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
             b = bra_mos[bra_sd]
@@ -141,9 +130,7 @@ def run():
             ovlps.append(np.linalg.det(ovlp_mat))
         return ovlps
 
-    import pdb; pdb.set_trace()
     ovlps = list()
-
     # Iterate over pairs of states and form the Slater determinants
     for bra_state, ket_state in it.product(bra_cis, ket_cis):
         bra_exc = np.nonzero(bra_state > ci_thresh)
