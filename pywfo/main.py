@@ -6,21 +6,16 @@ import itertools as it
 import numpy as np
 
 
-def get_mo_ovlp(shape):
-    _ = np.zeros(shape)
-    path, string_repr = np.einsum_path("pu,qv,uv->pq", _, _, _,
-                                       optimize="optimal")
+def moovlp(mos1, mos2, S_AO=None):
+    """Overlap between two sets of MOs."""
+    if S_AO is None:
+        mos1_inv = np.linalg.inv(mos1)
+        S_AO = mos1_inv.dot(mos1_inv.T)
 
-    def moovlp(mos1, mos2, S_AO=None):
-        """Overlap between two sets of mos."""
-        if S_AO is None:
-            mos1_inv = np.linalg.inv(mos1)
-            S_AO = mos1_inv.dot(mos1_inv.T)
-
-        # <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
-        ovlp = np.einsum("pu,qv,uv->pq", mos1, mos2, S_AO, optimize=path)
-        return ovlp
-    return moovlp
+    # <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
+    ovlp = np.einsum("pu,qv,uv->pq", mos1, mos2, S_AO,
+                     optimize=['einsum_path', (0, 2), (0, 1)])
+    return ovlp
 
 
 def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False):
@@ -29,7 +24,8 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
 
     dim_ = bra_mos.shape[0]
 
-    # Indices of the occupied MOs
+    # Indices of the occupied MOs that make up the ground state Slater
+    # determinant.
     occ_mos = np.arange(occ)
 
     def get_sd_mo_inds(exc=None):
@@ -47,8 +43,6 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
             beta_mos.extend([mo_inds, occ_mos])
         return alpha_mos, beta_mos
 
-    moovlp = get_mo_ovlp((dim_, dim_))
-
     bra_mos_inv = np.linalg.inv(bra_mos)
     S_AO = bra_mos_inv.dot(bra_mos_inv.T)
 
@@ -61,9 +55,11 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
             ovlps.append(np.linalg.det(ovlp_mat))
         return ovlps
 
-    ovlps = list()
+    # Factor needed to construct spin-adapted excitations
     _ = 1/(2**0.5)
     spin_adapt = np.array((_, -_))[None, :]
+
+    ovlps = list()
     # Iterate over pairs of states
     for bra_state, ket_state in it.product(bra_ci, ket_ci):
         # Select CI coefficients above the given threshold
@@ -98,7 +94,6 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
         braket_ovlp = (bra_coeffs * ket_contr).sum()
         # _ = np.einsum_path("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
         ovlps.append(braket_ovlp)
-    ovlps = np.array(ovlps)
-    ovlps = ovlps.reshape(len(bra_ci), -1)
+    ovlps = np.reshape(ovlps, (len(bra_ci), -1))
 
     return ovlps
