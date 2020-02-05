@@ -6,6 +6,8 @@
 
 
 import itertools as it
+
+import numba
 import numpy as np
 
 
@@ -25,6 +27,38 @@ def moovlp(mos1, mos2, S_AO):
     ovlp = np.einsum("pu,qv,uv->pq", mos1, mos2, S_AO,
                      optimize=['einsum_path', (0, 2), (0, 1)])
     return ovlp
+
+
+def moovlp_expl(mos1, mos2, S_AO):
+    """Overlap between two sets of MOs.
+
+    <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
+    """
+
+    P, _ = mos1.shape
+    _, Q = mos2.shape
+    U, V = S_AO.shape
+
+    pv = np.zeros((P, V))
+    for p in range(P):
+        for v in range(V):
+            pv[p,v] = (S_AO[:,v]*mos1[p,:]).sum()
+
+    pq = np.zeros((P, Q))
+    for p in range(P):
+        for q in range(Q):
+            pq[p,q] = (pv[p,:] * mos2[q,:]).sum()
+
+    return pq
+
+@numba.jit(nopython=True)
+def moovlp_dots(mos1, mos2, S_AO):
+    """Overlap between two sets of MOs.
+
+    <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
+    """
+
+    return mos1.dot(S_AO).dot(mos2.T)
 
 
 def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
@@ -63,7 +97,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
         for bra_sd, ket_sd in it.product(bra_inds, ket_inds):
             b = bra_mos[bra_sd]
             k = ket_mos[ket_sd]
-            ovlp_mat = moovlp(b, k, S_AO)
+            ovlp_mat = moovlp_dots(b, k, S_AO)
             ovlps.append(np.linalg.det(ovlp_mat))
         return ovlps
 
@@ -117,7 +151,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
     # for (bra, ket) in unique_ovlps:
         # bra_sign, bra_inds = slater_dets[("bra", bra)]
         # ket_sign, ket_inds = slater_dets[("ket", ket)]
-        # ovlp_mat = moovlp(bra_mos[bra_inds], ket_mos[ket_inds], S_AO)
+        # ovlp_mat = moovlp_dots(bra_mos[bra_inds], ket_mos[ket_inds], S_AO)
         # ovlp_mat *= bra_sign * ket_sign
         # ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
     # # for k,v in ovlps.items(): print(k, f"{v: >10.6f}")
@@ -248,11 +282,14 @@ def overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False
 
     # TODO: precompute minors
 
+    # Precontract bra_mos, S_AO and ket_mos
+    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
+
     ovlps = dict()
     for (bra, ket) in unique_ovlps:
         bra_sign, bra_inds = slater_dets[("bra", bra)]
         ket_sign, ket_inds = slater_dets[("ket", ket)]
-        ovlp_mat = moovlp(bra_mos[bra_inds], ket_mos[ket_inds], S_AO)
+        ovlp_mat = mo_ovlps[bra_inds][:,ket_inds]
         ovlp_mat *= bra_sign * ket_sign
         ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
     # for k,v in ovlps.items(): print(k, f"{v: >10.6f}")
