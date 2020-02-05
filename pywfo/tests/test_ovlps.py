@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import pytest
 
 import h5py
 import numpy as np
@@ -99,7 +100,13 @@ def test_ovlps():
     # np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
 
 
-def test_cytosin():
+@pytest.mark.parametrize(
+    "ci_thresh, ref_ovlps",
+    [(.5, (-0.0001179859,  0.7513668694, -0.4631592028, -0.0000876285)),
+     (1e-2, (-0.000137,  0.790922, -0.463159, -0.000088)),  # ~ 4 sec
+    ]
+)
+def test_cytosin(ci_thresh, ref_ovlps):
     with h5py.File(THIS_DIR / "ref_cytosin/cytosin_overlap_data.h5") as handle:
         mo_coeffs = handle["mo_coeffs"][:]
         ci_coeffs = handle["ci_coeffs"][:]
@@ -117,13 +124,8 @@ def test_cytosin():
 
     occ = bra_ci[0].shape[0]
 
-    ci_thresh = 2e-1
-    # ci_thresh = 1e-2
     ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh,
                     ao_ovlps="ket")
     print(ovlps)
-    ref_ovlps = np.array((
-                    (-0.0001179859,  0.7513668694),
-                    (-0.4631592028, -0.0000876285))
-    )
+    ref_ovlps = np.array(ref_ovlps).reshape(ovlps.shape)
     np.testing.assert_allclose(ovlps, ref_ovlps, atol=2e-3)
