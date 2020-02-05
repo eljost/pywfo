@@ -1,4 +1,6 @@
-from pysisyphus.calculators.WFOWrapper2 import WFOWrapper2
+import os
+from pathlib import Path
+
 import h5py
 import numpy as np
 
@@ -7,8 +9,11 @@ from ..main import overlaps
 
 np.set_printoptions(suppress=True, precision=6)
 
+THIS_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
+
 
 def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
+    from pysisyphus.calculators.WFOWrapper2 import WFOWrapper2
     for fn, mos in zip("a_mo b_mo".split(), (a_mo, b_mo)):
         mo_str = WFOWrapper2.fake_turbo_mos(mos)
         with open(f"{out_dir}/{fn}", "w") as handle:
@@ -95,7 +100,7 @@ def test_ovlps():
 
 
 def test_cytosin():
-    with h5py.File("ref_cytosin/cytosin_overlap_data.h5") as handle:
+    with h5py.File(THIS_DIR / "ref_cytosin/cytosin_overlap_data.h5") as handle:
         mo_coeffs = handle["mo_coeffs"][:]
         ci_coeffs = handle["ci_coeffs"][:]
     print(mo_coeffs.shape)
