@@ -5,11 +5,15 @@ import itertools as it
 import numpy as np
 
 
-def moovlp(mos1, mos2, S_AO=None):
+def moovlp(mos1, mos2, S_AO):
     """Overlap between two sets of MOs."""
-    if S_AO is None:
-        mos1_inv = np.linalg.inv(mos1)
-        S_AO = mos1_inv.dot(mos1_inv.T)
+
+    # S_AO == None will only work if mos1 are comprise all MOs (occ. + virt.).
+    # If we only supply a subset of MOs like in an excited state SD then this
+    # will not work. So I deactivate it for now.
+    # if S_AO is None:
+        # mos1_inv = np.linalg.inv(mos1)
+        # S_AO = mos1_inv.dot(mos1_inv.T)
 
     # <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
     ovlp = np.einsum("pu,qv,uv->pq", mos1, mos2, S_AO,
@@ -17,7 +21,8 @@ def moovlp(mos1, mos2, S_AO=None):
     return ovlp
 
 
-def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False):
+def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
+             ao_ovlps="bra"):
     assert bra_mos.shape == ket_mos.shape
     assert bra_ci.shape == ket_ci.shape
 
@@ -41,8 +46,13 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
             beta_mos.extend([mo_inds, occ_mos])
         return alpha_mos, beta_mos
 
-    bra_mos_inv = np.linalg.inv(bra_mos)
-    S_AO = bra_mos_inv.dot(bra_mos_inv.T)
+    if isinstance(ao_ovlps, str):
+        inv = np.linalg.inv({"bra": bra_mos, "ket": ket_mos}[ao_ovlps])
+        S_AO = inv.dot(inv.T)
+    elif isinstance(ao_ovlps, np.array):
+        S_AO = ao_ovlps
+    else:
+        raise Exception("Invalid AO overlaps!")
 
     def get_sd_ovlps(bra_inds, ket_inds):
         ovlps = list()
@@ -61,8 +71,8 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False)
     # Iterate over pairs of states
     for bra_state, ket_state in it.product(bra_ci, ket_ci):
         # Select CI coefficients above the given threshold
-        bra_exc = np.nonzero(bra_state > ci_thresh)
-        ket_exc = np.nonzero(ket_state > ci_thresh)
+        bra_exc = np.nonzero(np.abs(bra_state) > ci_thresh)
+        ket_exc = np.nonzero(np.abs(ket_state) > ci_thresh)
 
         # CI coefficients
         bra_coeffs = bra_state[bra_exc]
