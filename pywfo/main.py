@@ -84,6 +84,9 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
         bra_coeffs = (bra_coeffs[:, None] * spin_adapt).flatten()
         ket_coeffs = (ket_coeffs[:, None] * spin_adapt).flatten()
 
+        # print("bra", bra_coeffs)
+        # print("ket", ket_coeffs)
+
         # Get the MO indices that make up the (excited) Slater determinants,
         # separated by spin.
         bra_alpha, bra_beta = get_sd_mo_inds(bra_exc)

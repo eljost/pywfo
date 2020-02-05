@@ -1,7 +1,11 @@
 from pysisyphus.calculators.WFOWrapper2 import WFOWrapper2
+import h5py
 import numpy as np
 
 from ..main import overlaps
+
+
+np.set_printoptions(suppress=True, precision=6)
 
 
 def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
@@ -27,8 +31,6 @@ def perturb_mat(mat, scale=2e-1):
 
 
 def test_ovlps():
-    np.set_printoptions(suppress=True, precision=6)
-
     # Construct dummy MOs
     np.random.seed(20180325)
     dim_ = 4
@@ -90,3 +92,33 @@ def test_ovlps():
                     # (0.0000000000,  0.9614129472, 0.0272071813))
     # )
     # np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
+
+
+def test_cytosin():
+    with h5py.File("ref_cytosin/cytosin_overlap_data.h5") as handle:
+        mo_coeffs = handle["mo_coeffs"][:]
+        ci_coeffs = handle["ci_coeffs"][:]
+    print(mo_coeffs.shape)
+    print(ci_coeffs.shape)
+    # Compare first and third step 0 and 2
+    bra = 0
+    ket = 2
+
+    bra_mos = mo_coeffs[bra]
+    ket_mos = mo_coeffs[ket]
+
+    bra_ci = ci_coeffs[bra]
+    ket_ci = ci_coeffs[ket]
+
+    occ = bra_ci[0].shape[0]
+
+    ci_thresh = 2e-1
+    # ci_thresh = 1e-2
+    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh,
+                    ao_ovlps="ket")
+    print(ovlps)
+    ref_ovlps = np.array((
+                    (-0.0001179859,  0.7513668694),
+                    (-0.4631592028, -0.0000876285))
+    )
+    np.testing.assert_allclose(ovlps, ref_ovlps, atol=2e-3)
