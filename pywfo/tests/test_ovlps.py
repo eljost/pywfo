@@ -101,15 +101,24 @@ def test_ovlps():
 
 
 @pytest.mark.parametrize(
-    "ci_thresh, ref_ovlps",
+    "ci_thresh, ref_ovlps, ovlp_func",
     [
-     # (.5, (-0.0001179859,  0.7513668694, -0.4631592028, -0.0000876285)),
-     (1e-2, (-0.000137,  0.790922, -0.463159, -0.000088)),  # ~ 4 sec
-     # (1e-3, (-0.000137,  0.795608, -0.465939, -0.000092)),  # ~ 5.1 sec, overlap2
-     # (1e-3, (-0.000137,  0.799300, -0.465685, -0.000092)),  # ~ 5.1 sec, overlap2
+     (.5, (-0.0001179859,  0.7513668694, -0.4631592028, -0.0000876285), "overlap2"),
+     (.1, (-0.0001179859,  0.7513668694, -0.4631592028, -0.0000876285), "overlap2"),
+     (1e-2, (-0.000137,  0.790922, -0.463159, -0.000088), "overlap"),     # ~  5.4 sec
+     (1e-2, (-0.000137,  0.790922, -0.463159, -0.000088), "overlap2"),    # ~  0.8 sec
+     (5e-3, (-0.000137,  0.795608, -0.465939, -0.000092), "overlap"),     # ~ 44   sec
+     (5e-3, (-0.000137,  0.795608, -0.465939, -0.000092), "overlap2"),    # ~  6.1 sec
+     (1e-3, (-0.000137,  0.799300, -0.465685, -0.000092), "overlap2"),    # ~  5.1 sec
     ]
 )
-def test_cytosin(ci_thresh, ref_ovlps):
+def test_cytosin(ci_thresh, ref_ovlps, ovlp_func):
+    ovlp_funcs = {
+        "overlap": overlaps,
+        "overlap2": overlaps2,
+    }
+    func = ovlp_funcs[ovlp_func]
+
     with h5py.File(THIS_DIR / "ref_cytosin/cytosin_overlap_data.h5") as handle:
         mo_coeffs = handle["mo_coeffs"][:]
         ci_coeffs = handle["ci_coeffs"][:]
@@ -127,8 +136,8 @@ def test_cytosin(ci_thresh, ref_ovlps):
 
     occ = bra_ci[0].shape[0]
 
-    ovlps = overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh,
-                    ao_ovlps="ket")
+    ovlps = func(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh,
+                 ao_ovlps="ket")
     print(ovlps)
     ref_ovlps = np.array(ref_ovlps).reshape(ovlps.shape)
     np.testing.assert_allclose(ovlps, ref_ovlps, atol=2e-3)
