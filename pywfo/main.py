@@ -109,7 +109,6 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
         # Contract with ket coefficients
         ket_contr = np.einsum("k,bk,bk->b", ket_coeffs, alpha_ovlps, beta_ovlps)
         braket_ovlp = (bra_coeffs * ket_contr).sum()
-        # _ = np.einsum_path("b,k,bk,bk", bra_coeffs, ket_coeffs, alpha_ovlps, beta_ovlps)
         ovlps.append(braket_ovlp)
     ovlps = np.reshape(ovlps, (len(bra_ci), -1))
 
