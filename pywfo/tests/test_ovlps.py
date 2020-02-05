@@ -5,7 +5,7 @@ import pytest
 import h5py
 import numpy as np
 
-from ..main import overlaps
+from ..main import overlaps, overlaps2
 
 
 np.set_printoptions(suppress=True, precision=6)
@@ -102,8 +102,11 @@ def test_ovlps():
 
 @pytest.mark.parametrize(
     "ci_thresh, ref_ovlps",
-    [(.5, (-0.0001179859,  0.7513668694, -0.4631592028, -0.0000876285)),
+    [
+     # (.5, (-0.0001179859,  0.7513668694, -0.4631592028, -0.0000876285)),
      (1e-2, (-0.000137,  0.790922, -0.463159, -0.000088)),  # ~ 4 sec
+     # (1e-3, (-0.000137,  0.795608, -0.465939, -0.000092)),  # ~ 5.1 sec, overlap2
+     # (1e-3, (-0.000137,  0.799300, -0.465685, -0.000092)),  # ~ 5.1 sec, overlap2
     ]
 )
 def test_cytosin(ci_thresh, ref_ovlps):
@@ -124,7 +127,7 @@ def test_cytosin(ci_thresh, ref_ovlps):
 
     occ = bra_ci[0].shape[0]
 
-    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh,
+    ovlps = overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh,
                     ao_ovlps="ket")
     print(ovlps)
     ref_ovlps = np.array(ref_ovlps).reshape(ovlps.shape)
