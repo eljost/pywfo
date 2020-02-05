@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# [1] https://pubs.acs.org/doi/10.1021/acs.jctc.5b01148
+#     Efficient and Flexible Computation of Many-Electron Wave Function Overlaps
+#     Plasser, 2016
+
 
 import itertools as it
 import numpy as np
