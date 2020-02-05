@@ -6,7 +6,10 @@ import numpy as np
 
 
 def moovlp(mos1, mos2, S_AO):
-    """Overlap between two sets of MOs."""
+    """Overlap between two sets of MOs.
+
+    <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
+    """
 
     # S_AO == None will only work if mos1 are comprise all MOs (occ. + virt.).
     # If we only supply a subset of MOs like in an excited state SD then this
@@ -15,7 +18,6 @@ def moovlp(mos1, mos2, S_AO):
         # mos1_inv = np.linalg.inv(mos1)
         # S_AO = mos1_inv.dot(mos1_inv.T)
 
-    # <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
     ovlp = np.einsum("pu,qv,uv->pq", mos1, mos2, S_AO,
                      optimize=['einsum_path', (0, 2), (0, 1)])
     return ovlp
