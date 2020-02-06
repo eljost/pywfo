@@ -258,6 +258,11 @@ def overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False
     unique_ovlps |= ket_ovlps
     unique_ovlps |= {(None, None)}
 
+    print(f"bra SDs: {len(bra_sds)}")
+    print(f"ket SDs: {len(ket_sds)}")
+    print(f"SD pairs: {len(bra_sds)*len(ket_sds)}")
+    print(f"Unique overlaps: {len(unique_ovlps)}")
+
     # Form the SDs by gathering appropriate MOs and determine their sign
     # after sorting. The SDs are sorted in a way, that the accepting orbital
     # of the excitation (hole orbital) is the last one.
