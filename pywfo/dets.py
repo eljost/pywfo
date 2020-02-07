@@ -7,60 +7,65 @@ import numpy as np
 np.set_printoptions(suppress=True, precision=6, linewidth=120)
 
 
-def pri(_):
-    for __ in _: print(__)
-
-
 BlockResult = namedtuple(
+    # "BlockResult", "block_num super_block_num blocks block_map super_map " \
+                   # "sort_inds ci_coeffs"
     "BlockResult", "block_num super_block_num blocks block_map super_map " \
-                   "sort_inds ci_coeffs"
+                   "sort_inds"
 )
 
 def block_dets(dets, ci_coeffs):
     # Prefix with indices so we get the actual sorting
     ind_dets = [(i, d) for i, d in enumerate(dets)]
     sort_inds, dets = zip(*sorted(ind_dets, key=lambda x: x[1]))
+    sort_inds = list(sort_inds)
 
     # # Blocks
     # blocks = dict.fromkeys(dets)
     # # Superblocks
     # super_blocks = dict.fromkeys([_[:-1] for _ in dets])
 
-    block_num = 1
-    super_block_num = 1
+    block_ind = 0
+    super_block_ind = 0
     blocks = [list(dets[0]), ]
-    block_map = [0, ]
-    super_map = [0, ]
+    block_map = [block_ind, ]
+    super_map = [super_block_ind, ]
     for i, sd in enumerate(dets[1:]):
-        # if not (sd == dets[i]).all():
         if not sd == dets[i]:
-            block_num += 1
+            block_ind += 1
             blocks.append(list(sd))
-            # if not (sd[:-1] == dets[i][:-1]).all():
             if not sd[:-1] == dets[i][:-1]:
-                super_block_num += 1
-                super_map.append(block_num)
-        block_map.append(block_num)
-
-    # Sort CI coefficients
-    ci_sorted = ci_coeffs[sort_inds,:]
+                super_block_ind += 1
+                super_map.append(block_ind)
+        block_map.append(block_ind)
 
     res = BlockResult(
-            block_num,
-            super_block_num,
+            block_ind+1,
+            super_block_ind+1,
             blocks,
             block_map,
             super_map,
             sort_inds,
-            ci_sorted
     )
     return res
+
+
+def dbg_print(blocked, coeffs):
+    sis = blocked.sort_inds
+    blocks = blocked.blocks
+    block_map = blocked.block_map
+    for i, block in enumerate(blocked.block_map):
+        si = sis[i]
+        blk = block_map[i]
+        print(i, si, blk, coeffs[si,0], blocks[block][15:])
+    print()
 
 
 def print_dets():
     with h5py.File("tests/ref_cytosin/cytosin_overlap_data.h5") as handle:
         mo_coeffs = handle["mo_coeffs"][:]
         ci_coeffs = handle["ci_coeffs"][:]
+
     # Compare first and third step 0 and 2
     bra = 0
     ket = 2
@@ -74,8 +79,12 @@ def print_dets():
 
     bra_ci = ci_coeffs[bra]
     ket_ci = ci_coeffs[ket]
+
+    bra_states = bra_ci.shape[0]
+    ket_states = ket_ci.shape[0]
     
     ci_thresh = 7e-2
+    # ci_thresh = 1e-2
 
     bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
     ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
@@ -114,26 +123,74 @@ def print_dets():
     print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
     print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
 
-    # TODO: signs still missing
     def precompute(bra_blocked, ket_blocked, mo_ovlps):
         block_ovlps = np.zeros((bra_blocked.block_num, ket_blocked.block_num))
 
-        super_map = ket_blocked.super_map
-        for i in range(ket_blocked.super_block_num)[:-1]:
-            # Compute for all blocks that belong to the given superblock
-            cur_start = super_map[i]
-            block_slice = slice(cur_start,super_map[i+1])
-            for j, ket_block in enumerate(ket_blocked.blocks[block_slice], cur_start):
-                for k, bra_block in enumerate(bra_blocked.blocks):
-                    ovlp_mat = mo_ovlps[bra_block][:,ket_block]
-                    block_ovlps[k,j] = np.linalg.det(ovlp_mat)
+        for i, bra_block in enumerate(bra_blocked.blocks):
+            for j, ket_block in enumerate(ket_blocked.blocks):
+                ovlp_mat = mo_ovlps[bra_block][:,ket_block]
+                block_ovlps[i,j] = np.linalg.det(ovlp_mat)
         return block_ovlps
 
-    
+    print("bra alpha")
+    dbg_print(bra_alpha_blocked, bra_coeffs)
+    print("bra beta")
+    dbg_print(bra_beta_blocked, bra_coeffs)
+    print("ket alpha")
+    dbg_print(ket_alpha_blocked, ket_coeffs)
+    print("ket beta")
+    dbg_print(ket_beta_blocked, ket_coeffs)
+
+    def ci_block_map(block_map, sort_inds):
+        _ = np.zeros_like(block_map, dtype=int)
+        _[sort_inds] = block_map
+        return _
+
+    bac = ci_block_map(bra_alpha_blocked.block_map, bra_alpha_blocked.sort_inds)
+    bbc = ci_block_map(bra_beta_blocked.block_map, bra_beta_blocked.sort_inds)
+    kac = ci_block_map(ket_alpha_blocked.block_map, ket_alpha_blocked.sort_inds)
+    kbc = ci_block_map(ket_beta_blocked.block_map, ket_beta_blocked.sort_inds)
+
+    def reorder_ci(sort_inds, alpha_map, beta_map, ci_coeffs):
+        ci_inds = ci_coeffs[sort_inds,:] 
+        alpha_sort = alpha_map[sort_inds]
+        beta_sort = beta_map[sort_inds]
+        return alpha_sort, beta_sort, ci_inds
+
+    # Re-sort bra
+    ba_blks, bb_blks, bci = reorder_ci(bra_alpha_blocked.sort_inds, bac, bbc, bra_coeffs)
+    # Re-sort ket
+    ka_blks, kb_blks, kci = reorder_ci(ket_alpha_blocked.sort_inds, kac, kbc, ket_coeffs)
+
+    # Hardcoded:
+    #   P = beta
+    #   Q = alpha
+    # Sort acording to Q (alpha), so P (beta) has to be re-sorted.
+    print("beta ovlps")
     beta_block_ovlps = precompute(bra_beta_blocked, ket_beta_blocked, mo_ovlps)
+    beta_block_ovlps[:,-1] = 0.
+    print(beta_block_ovlps)
+    print("alpha ovlps")
     alpha_block_ovlps = precompute(bra_alpha_blocked, ket_alpha_blocked, mo_ovlps)
-    import pdb; pdb.set_trace()
-    # return bra_alpha_blocked, bra_beta_blocked, ket_alpha_blocked, ket_beta_blocked
+    alpha_block_ovlps[:,-1] = 0.
+    print(alpha_block_ovlps)
+
+    # Loop over every ket-SD
+    wfo = np.zeros((bra_states, ket_states))
+    # for ket_alpha_block, ket_beta_block, kc in zip(kab, kbb, kcs):
+    for ket_alpha_block, ket_beta_block, kc in zip(ka_blks, kb_blks, kci):
+        print(ket_alpha_block, ket_beta_block, kc)
+        SS = alpha_block_ovlps[ba_blks,ket_alpha_block] * beta_block_ovlps[bb_blks,ket_beta_block]
+        dSS = (bci * SS[:,None]).sum(axis=0)
+        _ = np.outer(dSS, kc)
+        # _ = np.outer(kc, dSS)
+        wfo += _
+        # import pdb; pdb.set_trace()
+        print(_)
+        print()
+    print(wfo)
+
+    return wfo
 
 
 def get_dets(ci_coeffs, ci_thresh=.1):
@@ -179,17 +236,17 @@ def get_dets_str(dets, coeffs):
     return det_str
 
 
-def trans(ind, char):
-    d = {
-        "a": (ind, -1),
-        "b": (-1, ind),
-        "d": (ind, ind),
-        "e": (-1, -1),
-    }
-    return d[char]
-
 def expand_det(det):
     """Transform det string into alpha and beta orbital index lists"""
+
+    def trans(ind, char):
+        d = {
+            "a": (ind, -1),
+            "b": (-1, ind),
+            "d": (ind, ind),
+            "e": (-1, -1),
+        }
+        return d[char]
 
     alpha = None
     beta = None
