@@ -1,6 +1,5 @@
 from collections import namedtuple
 
-import h5py
 import numpy as np
 
 
@@ -71,33 +70,9 @@ def precompute(bra_blocked, ket_blocked, mo_ovlps):
     return block_ovlps
 
 
-
-def print_dets():
-    with h5py.File("tests/ref_cytosin/cytosin_overlap_data.h5") as handle:
-        mo_coeffs = handle["mo_coeffs"][:]
-        ci_coeffs = handle["ci_coeffs"][:]
-
-    # Compare first and third step 0 and 2
-    bra = 0
-    ket = 2
-
-    bra_mos = mo_coeffs[bra]
-    ket_mos = mo_coeffs[ket]
-
-    ket_inv = np.linalg.inv(ket_mos)
-    S_AO = ket_inv.dot(ket_inv.T)
-    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
-
-    bra_ci = ci_coeffs[bra]
-    ket_ci = ci_coeffs[ket]
-
+def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO):
     bra_states = bra_ci.shape[0]
     ket_states = ket_ci.shape[0]
-    
-    ci_thresh = 7e-2
-    # ci_thresh = 1e-2
-    # ci_thresh = 5e-3
-    # ci_thresh = 1e-3
 
     bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
     ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
@@ -166,6 +141,7 @@ def print_dets():
     # Re-sort ket
     ka_blks, kb_blks, kci = reorder_ci(ket_alpha_blocked.sort_inds, kac, kbc, ket_coeffs)
 
+    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
     # Hardcoded:
     #   P = beta
     #   Q = alpha
@@ -186,11 +162,6 @@ def print_dets():
         SS = alpha_block_ovlps[ba_blks,ket_alpha_block] * beta_block_ovlps[bb_blks,ket_beta_block]
         dSS = (bci * SS[:,None]).sum(axis=0)
         wfo += np.outer(dSS, kc)
-    print(wfo)
-
-    ref = np.array((0.000178, 0.767295, -0.464277, 0.000027)).reshape(-1, 2) 
-
-    np.testing.assert_allclose(wfo, ref, atol=1e-6)
 
     return wfo
 
@@ -260,11 +231,3 @@ def expand_det(det):
     beta  = tuple([_ for _ in beta if _ != -1])
 
     return alpha, beta
-
-
-print_dets()
-# d = "dddddabeeab"
-# ai, bi = expand_det(d)
-# import pdb; pdb.set_trace()
-# np.testing.assert_allclose(ai, [0,1,2,3,4,5,9])
-# np.testing.assert_allclose(bi, [0,1,2,3,4,6,10])
