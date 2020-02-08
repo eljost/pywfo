@@ -85,6 +85,7 @@ def print_dets():
     
     ci_thresh = 7e-2
     # ci_thresh = 1e-2
+    # ci_thresh = 5e-3
 
     bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
     ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
@@ -132,14 +133,14 @@ def print_dets():
                 block_ovlps[i,j] = np.linalg.det(ovlp_mat)
         return block_ovlps
 
-    print("bra alpha")
-    dbg_print(bra_alpha_blocked, bra_coeffs)
-    print("bra beta")
-    dbg_print(bra_beta_blocked, bra_coeffs)
-    print("ket alpha")
-    dbg_print(ket_alpha_blocked, ket_coeffs)
-    print("ket beta")
-    dbg_print(ket_beta_blocked, ket_coeffs)
+    # print("bra alpha")
+    # dbg_print(bra_alpha_blocked, bra_coeffs)
+    # print("bra beta")
+    # dbg_print(bra_beta_blocked, bra_coeffs)
+    # print("ket alpha")
+    # dbg_print(ket_alpha_blocked, ket_coeffs)
+    # print("ket beta")
+    # dbg_print(ket_beta_blocked, ket_coeffs)
 
     def ci_block_map(block_map, sort_inds):
         _ = np.zeros_like(block_map, dtype=int)
@@ -166,29 +167,27 @@ def print_dets():
     #   P = beta
     #   Q = alpha
     # Sort acording to Q (alpha), so P (beta) has to be re-sorted.
-    print("beta ovlps")
+    # print("beta ovlps")
     beta_block_ovlps = precompute(bra_beta_blocked, ket_beta_blocked, mo_ovlps)
     beta_block_ovlps[:,-1] = 0.
-    print(beta_block_ovlps)
-    print("alpha ovlps")
+    # print(beta_block_ovlps)
+    # print("alpha ovlps")
     alpha_block_ovlps = precompute(bra_alpha_blocked, ket_alpha_blocked, mo_ovlps)
     alpha_block_ovlps[:,-1] = 0.
-    print(alpha_block_ovlps)
+    # print(alpha_block_ovlps)
 
     # Loop over every ket-SD
     wfo = np.zeros((bra_states, ket_states))
-    # for ket_alpha_block, ket_beta_block, kc in zip(kab, kbb, kcs):
     for ket_alpha_block, ket_beta_block, kc in zip(ka_blks, kb_blks, kci):
-        print(ket_alpha_block, ket_beta_block, kc)
+        # print(ket_alpha_block, ket_beta_block, kc)
         SS = alpha_block_ovlps[ba_blks,ket_alpha_block] * beta_block_ovlps[bb_blks,ket_beta_block]
         dSS = (bci * SS[:,None]).sum(axis=0)
-        _ = np.outer(dSS, kc)
-        # _ = np.outer(kc, dSS)
-        wfo += _
-        # import pdb; pdb.set_trace()
-        print(_)
-        print()
+        wfo += np.outer(dSS, kc)
     print(wfo)
+
+    ref = np.array((0.0001756812, 0.7595819414, -0.4642769417, 0.0000282031)).reshape(-1, 2) 
+
+    np.testing.assert_allclose(wfo, ref)
 
     return wfo
 
