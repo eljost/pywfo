@@ -61,6 +61,17 @@ def dbg_print(blocked, coeffs):
     print()
 
 
+def precompute(bra_blocked, ket_blocked, mo_ovlps):
+    block_ovlps = np.zeros((bra_blocked.block_num, ket_blocked.block_num))
+
+    for i, bra_block in enumerate(bra_blocked.blocks):
+        for j, ket_block in enumerate(ket_blocked.blocks):
+            ovlp_mat = mo_ovlps[bra_block][:,ket_block]
+            block_ovlps[i,j] = np.linalg.det(ovlp_mat)
+    return block_ovlps
+
+
+
 def print_dets():
     with h5py.File("tests/ref_cytosin/cytosin_overlap_data.h5") as handle:
         mo_coeffs = handle["mo_coeffs"][:]
@@ -120,19 +131,10 @@ def print_dets():
     print(f"Block determinants: {block_det_num: >16d}")
     print()
 
-    print(f"<bra| alpha super-blocks: {bra_alpha_blocked.super_block_num: >16d}")
-    print(f"|ket> alpha super-blocks: {ket_alpha_blocked.super_block_num: >16d}")
-    print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
-    print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
-
-    def precompute(bra_blocked, ket_blocked, mo_ovlps):
-        block_ovlps = np.zeros((bra_blocked.block_num, ket_blocked.block_num))
-
-        for i, bra_block in enumerate(bra_blocked.blocks):
-            for j, ket_block in enumerate(ket_blocked.blocks):
-                ovlp_mat = mo_ovlps[bra_block][:,ket_block]
-                block_ovlps[i,j] = np.linalg.det(ovlp_mat)
-        return block_ovlps
+    # print(f"<bra| alpha super-blocks: {bra_alpha_blocked.super_block_num: >16d}")
+    # print(f"|ket> alpha super-blocks: {ket_alpha_blocked.super_block_num: >16d}")
+    # print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
+    # print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
 
     # print("bra alpha")
     # dbg_print(bra_alpha_blocked, bra_coeffs)
@@ -186,9 +188,9 @@ def print_dets():
         wfo += np.outer(dSS, kc)
     print(wfo)
 
-    ref = np.array((0.0001756812, 0.7595819414, -0.4642769417, 0.0000282031)).reshape(-1, 2) 
+    ref = np.array((0.000178, 0.767295, -0.464277, 0.000027)).reshape(-1, 2) 
 
-    np.testing.assert_allclose(wfo, ref)
+    np.testing.assert_allclose(wfo, ref, atol=1e-6)
 
     return wfo
 
