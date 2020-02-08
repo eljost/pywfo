@@ -4,7 +4,7 @@ import h5py
 import numpy as np
 
 
-np.set_printoptions(suppress=True, precision=6, linewidth=120)
+np.set_printoptions(suppress=True, precision=8, linewidth=120)
 
 
 BlockResult = namedtuple(
@@ -86,6 +86,7 @@ def print_dets():
     ci_thresh = 7e-2
     # ci_thresh = 1e-2
     # ci_thresh = 5e-3
+    # ci_thresh = 1e-3
 
     bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
     ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
@@ -199,12 +200,14 @@ def get_dets(ci_coeffs, ci_thresh=.1):
 
     spin_adapt = (np.array((1, -1)) * 1/(2**0.5))[:,None]
 
+    # signs = list()
     dets = list()
     indices = list()
     coeffs = list()
-    for f, t in zip(from_, to):
+    signs = (-1)**(occ - from_ + 1)
+    for sign, f, t in zip(signs, from_, to):
         cfs = ci_coeffs[:,f,t] * spin_adapt
-        coeffs.extend(cfs)
+        coeffs.extend(sign * cfs)
         t += occ
         # Excitation of alpha; beta left behind
         ab_det = base_det.copy()
@@ -253,7 +256,6 @@ def expand_det(det):
     alpha, beta = zip(*([trans(i, c) for i, c in enumerate(det)])) 
     alpha  = tuple([_ for _ in alpha if _ != -1])
     beta  = tuple([_ for _ in beta if _ != -1])
-    # import pdb; pdb.set_trace()
 
     return alpha, beta
 
