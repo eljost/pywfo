@@ -3,176 +3,9 @@ from collections import namedtuple
 import numpy as np
 
 
-BlockResult = namedtuple(
-    # "BlockResult", "block_num super_block_num blocks block_map super_map " \
-                   # "sort_inds ci_coeffs"
-    "BlockResult", "block_num super_block_num blocks " \
-                   "block_map super_map ci_block_map " \
-                   "sort_inds"
-)
-
-def block_dets(dets, ci_coeffs):
-    # Prefix with indices so we get the actual sorting
-    ind_dets = [(i, d) for i, d in enumerate(dets)]
-    sort_inds, dets = zip(*sorted(ind_dets, key=lambda x: x[1]))
-    sort_inds = list(sort_inds)
-
-    # # Blocks
-    # blocks = dict.fromkeys(dets)
-    # # Superblocks
-    # super_blocks = dict.fromkeys([_[:-1] for _ in dets])
-
-    block_ind = 0
-    super_block_ind = 0
-    blocks = [list(dets[0]), ]
-    block_map = [block_ind, ]
-    super_map = [super_block_ind, ]
-    for i, sd in enumerate(dets[1:]):
-        if not sd == dets[i]:
-            block_ind += 1
-            blocks.append(list(sd))
-            if not sd[:-1] == dets[i][:-1]:
-                super_block_ind += 1
-                super_map.append(block_ind)
-        block_map.append(block_ind)
-
-    ci_block_map = np.zeros_like(block_map)
-    ci_block_map[sort_inds] = block_map
-
-    res = BlockResult(
-            block_ind+1,
-            super_block_ind+1,
-            blocks,
-            block_map,
-            super_map,
-            ci_block_map,
-            sort_inds,
-    )
-    return res
-
-
-def dbg_print(blocked, coeffs):
-    sis = blocked.sort_inds
-    blocks = blocked.blocks
-    block_map = blocked.block_map
-    for i, block in enumerate(blocked.block_map):
-        si = sis[i]
-        blk = block_map[i]
-        print(i, si, blk, coeffs[si,0], blocks[block][15:])
-    print()
-
-
-def prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh, det_fn=None):
-    signs, dets, inds, coeffs = get_dets(ci_coeffs, ci_thresh)
-
-    prefacts, alpha_dets, beta_dets = zip(*[expand_det_string(det, n_alpha, n_beta)
-                                            for det in dets])
-    prefacts = np.array(prefacts)
-    coeffs *= prefacts[:,None]# * signs[:,None]
-    alpha_blocked = block_dets(alpha_dets, coeffs)
-    beta_blocked = block_dets(beta_dets, coeffs)
-
-    if det_fn:
-        det_str = get_dets_str(dets, coeffs)
-        with open(det_fn, "w") as handle:
-            handle.write(det_str)
-
-    return coeffs, alpha_blocked, beta_blocked
-
-
-def precompute(bra_blocked, ket_blocked, mo_ovlps):
-    block_ovlps = np.zeros((bra_blocked.block_num, ket_blocked.block_num))
-
-    for i, bra_block in enumerate(bra_blocked.blocks):
-        for j, ket_block in enumerate(ket_blocked.blocks):
-            ovlp_mat = mo_ovlps[bra_block][:,ket_block]
-            block_ovlps[i,j] = np.linalg.det(ovlp_mat)
-    return block_ovlps
-
-
-def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO, closed_shell=True):
-    # Right now only closed shell is supported
-    assert closed_shell
-    # Assert same number of MOs for bra and ket
-    np.testing.assert_allclose(bra_ci.shape[1:], ket_ci.shape[1:])
-
-    n_alpha = bra_ci.shape[1]
-    n_beta = n_alpha
-
-    bra_states = bra_ci.shape[0]
-    ket_states = ket_ci.shape[0]
-
-    def prep(ci_coeffs):
-        return prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh)
-
-    bra_coeffs, bra_alpha_blocked, bra_beta_blocked = prep(bra_ci)
-    ket_coeffs, ket_alpha_blocked, ket_beta_blocked = prep(ket_ci)
-
-    ba_blocks = bra_alpha_blocked.block_num
-    ka_blocks = ket_alpha_blocked.block_num
-    bb_blocks = bra_beta_blocked.block_num
-    kb_blocks = ket_beta_blocked.block_num
-    block_det_num = ba_blocks * ka_blocks + bb_blocks * kb_blocks
-    print(f"<bra| alpha blocks: {ba_blocks: >16d}")
-    print(f"|ket> alpha blocks: {ka_blocks: >16d}")
-    print(f"<bra|  beta blocks: {bb_blocks: >16d}")
-    print(f"|ket>  beta blocks: {kb_blocks: >16d}")
-    print(f"Block determinants: {block_det_num: >16d}")
-    print()
-
-    print(f"<bra| alpha super-blocks: {bra_alpha_blocked.super_block_num: >16d}")
-    print(f"|ket> alpha super-blocks: {ket_alpha_blocked.super_block_num: >16d}")
-    print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
-    print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
-
-    # print("bra alpha")
-    # dbg_print(bra_alpha_blocked, bra_coeffs)
-    # print("bra beta")
-    # dbg_print(bra_beta_blocked, bra_coeffs)
-    # print("ket alpha")
-    # dbg_print(ket_alpha_blocked, ket_coeffs)
-    # print("ket beta")
-    # dbg_print(ket_beta_blocked, ket_coeffs)
-
-    bac = bra_alpha_blocked.ci_block_map
-    bbc = bra_beta_blocked.ci_block_map
-    kac = ket_alpha_blocked.ci_block_map
-    kbc = ket_beta_blocked.ci_block_map
-
-    def reorder_ci(sort_inds, alpha_map, beta_map, ci_coeffs):
-        ci_inds = ci_coeffs[sort_inds,:] 
-        alpha_sort = alpha_map[sort_inds]
-        beta_sort = beta_map[sort_inds]
-        return alpha_sort, beta_sort, ci_inds
-
-    # Re-sort bra
-    ba_blks, bb_blks, bci = reorder_ci(bra_alpha_blocked.sort_inds, bac, bbc, bra_coeffs)
-    # Re-sort ket
-    ka_blks, kb_blks, kci = reorder_ci(ket_alpha_blocked.sort_inds, kac, kbc, ket_coeffs)
-
-    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
-    # Hardcoded:
-    #   P = beta
-    #   Q = alpha
-    # Sort acording to Q (alpha), so P (beta) has to be re-sorted.
-    # print("beta ovlps")
-    beta_block_ovlps = precompute(bra_beta_blocked, ket_beta_blocked, mo_ovlps)
-    # print(beta_block_ovlps)
-    # print("alpha ovlps")
-    alpha_block_ovlps = precompute(bra_alpha_blocked, ket_alpha_blocked, mo_ovlps)
-    # print(alpha_block_ovlps)
-
-    # Loop over every ket-SD
-    wfo = np.zeros((bra_states, ket_states))
-    for ket_alpha_block, ket_beta_block, kc in zip(ka_blks, kb_blks, kci):
-        SS = alpha_block_ovlps[ba_blks,ket_alpha_block] * beta_block_ovlps[bb_blks,ket_beta_block]
-        dSS = (bci * SS[:,None]).sum(axis=0)
-        wfo += np.outer(dSS, kc)
-
-    return wfo
-
-
 def get_dets(ci_coeffs, ci_thresh=.1):
+    """Form spin-adapted determinants from the given
+    CI-coefficients."""
     occ, virt = ci_coeffs[0].shape
     base_det = list("d" * occ + "e" * virt)
     state, from_, to = np.nonzero(np.abs(ci_coeffs) > ci_thresh)
@@ -282,23 +115,170 @@ def get_dets_str(dets, coeffs):
     return det_str
 
 
-def expand_det(det):
-    """Transform det string into alpha and beta orbital index lists"""
+BlockResult = namedtuple(
+    # "BlockResult", "block_num super_block_num blocks block_map super_map " \
+                   # "sort_inds ci_coeffs"
+    "BlockResult", "block_num super_block_num blocks " \
+                   "block_map super_map ci_block_map " \
+                   "sort_inds"
+)
 
-    def trans(ind, char):
-        d = {
-            "a": (ind, -1),
-            "b": (-1, ind),
-            "d": (ind, ind),
-            "e": (-1, -1),
-        }
-        return d[char]
+def block_dets(dets, ci_coeffs):
+    # Prefix with indices so we get the actual sorting
+    ind_dets = [(i, d) for i, d in enumerate(dets)]
+    sort_inds, dets = zip(*sorted(ind_dets, key=lambda x: x[1]))
+    sort_inds = list(sort_inds)
 
-    alpha = None
-    beta = None
+    # # Blocks
+    # blocks = dict.fromkeys(dets)
+    # # Superblocks
+    # super_blocks = dict.fromkeys([_[:-1] for _ in dets])
 
-    alpha, beta = zip(*([trans(i, c) for i, c in enumerate(det)])) 
-    alpha  = tuple([_ for _ in alpha if _ != -1])
-    beta  = tuple([_ for _ in beta if _ != -1])
+    block_ind = 0
+    super_block_ind = 0
+    blocks = [list(dets[0]), ]
+    block_map = [block_ind, ]
+    super_map = [super_block_ind, ]
+    for i, sd in enumerate(dets[1:]):
+        if not sd == dets[i]:
+            block_ind += 1
+            blocks.append(list(sd))
+            if not sd[:-1] == dets[i][:-1]:
+                super_block_ind += 1
+                super_map.append(block_ind)
+        block_map.append(block_ind)
 
-    return alpha, beta
+    ci_block_map = np.zeros_like(block_map)
+    ci_block_map[sort_inds] = block_map
+
+    res = BlockResult(
+            block_ind+1,
+            super_block_ind+1,
+            blocks,
+            block_map,
+            super_map,
+            ci_block_map,
+            sort_inds,
+    )
+    return res
+
+
+def prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh, det_fn=None):
+    signs, dets, inds, coeffs = get_dets(ci_coeffs, ci_thresh)
+
+    prefacts, alpha_dets, beta_dets = zip(*[expand_det_string(det, n_alpha, n_beta)
+                                            for det in dets])
+    prefacts = np.array(prefacts)
+    coeffs *= prefacts[:,None]# * signs[:,None]
+    alpha_blocked = block_dets(alpha_dets, coeffs)
+    beta_blocked = block_dets(beta_dets, coeffs)
+
+    if det_fn:
+        det_str = get_dets_str(dets, coeffs)
+        with open(det_fn, "w") as handle:
+            handle.write(det_str)
+
+    return coeffs, alpha_blocked, beta_blocked
+
+
+def dbg_print(blocked, coeffs):
+    sis = blocked.sort_inds
+    blocks = blocked.blocks
+    block_map = blocked.block_map
+    for i, block in enumerate(blocked.block_map):
+        si = sis[i]
+        blk = block_map[i]
+        print(i, si, blk, coeffs[si,0], blocks[block][15:])
+    print()
+
+
+def precompute(bra_blocked, ket_blocked, mo_ovlps):
+    block_ovlps = np.zeros((bra_blocked.block_num, ket_blocked.block_num))
+
+    for i, bra_block in enumerate(bra_blocked.blocks):
+        for j, ket_block in enumerate(ket_blocked.blocks):
+            ovlp_mat = mo_ovlps[bra_block][:,ket_block]
+            block_ovlps[i,j] = np.linalg.det(ovlp_mat)
+    return block_ovlps
+
+
+def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO,
+              closed_shell=True, debug=True):
+    # Right now only closed shell is supported
+    assert closed_shell
+    # Assert same number of MOs for bra and ket
+    np.testing.assert_allclose(bra_ci.shape[1:], ket_ci.shape[1:])
+
+    n_alpha = bra_ci.shape[1]
+    n_beta = n_alpha
+
+    bra_states = bra_ci.shape[0]
+    ket_states = ket_ci.shape[0]
+
+    def prep(ci_coeffs):
+        return prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh)
+
+    bra_coeffs, bra_alpha_blocked, bra_beta_blocked = prep(bra_ci)
+    ket_coeffs, ket_alpha_blocked, ket_beta_blocked = prep(ket_ci)
+
+    ba_blocks = bra_alpha_blocked.block_num
+    ka_blocks = ket_alpha_blocked.block_num
+    bb_blocks = bra_beta_blocked.block_num
+    kb_blocks = ket_beta_blocked.block_num
+    block_det_num = ba_blocks * ka_blocks + bb_blocks * kb_blocks
+    print(f"<bra| alpha blocks: {ba_blocks: >16d}")
+    print(f"|ket> alpha blocks: {ka_blocks: >16d}")
+    print(f"<bra|  beta blocks: {bb_blocks: >16d}")
+    print(f"|ket>  beta blocks: {kb_blocks: >16d}")
+    print(f"Block determinants: {block_det_num: >16d}")
+    print()
+
+    print(f"<bra| alpha super-blocks: {bra_alpha_blocked.super_block_num: >16d}")
+    print(f"|ket> alpha super-blocks: {ket_alpha_blocked.super_block_num: >16d}")
+    print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
+    print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
+
+    if debug:
+        print("bra alpha")
+        dbg_print(bra_alpha_blocked, bra_coeffs)
+        print("bra beta")
+        dbg_print(bra_beta_blocked, bra_coeffs)
+        print("ket alpha")
+        dbg_print(ket_alpha_blocked, ket_coeffs)
+        print("ket beta")
+        dbg_print(ket_beta_blocked, ket_coeffs)
+
+    bac = bra_alpha_blocked.ci_block_map
+    bbc = bra_beta_blocked.ci_block_map
+    kac = ket_alpha_blocked.ci_block_map
+    kbc = ket_beta_blocked.ci_block_map
+
+    def reorder_ci(sort_inds, alpha_map, beta_map, ci_coeffs):
+        ci_inds = ci_coeffs[sort_inds,:] 
+        alpha_sort = alpha_map[sort_inds]
+        beta_sort = beta_map[sort_inds]
+        return alpha_sort, beta_sort, ci_inds
+
+    # Re-sort acording to alpha, so beta has to be re-sorted.
+    ba_blks, bb_blks, bci = reorder_ci(bra_alpha_blocked.sort_inds, bac, bbc, bra_coeffs)
+    ka_blks, kb_blks, kci = reorder_ci(ket_alpha_blocked.sort_inds, kac, kbc, ket_coeffs)
+
+    # Precontract MO coefficients with AO overlaps
+    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
+    beta_block_ovlps = precompute(bra_beta_blocked, ket_beta_blocked, mo_ovlps)
+    alpha_block_ovlps = precompute(bra_alpha_blocked, ket_alpha_blocked, mo_ovlps)
+
+    if debug:
+        print("precomputed beta ovlps")
+        print(beta_block_ovlps)
+        print("precomputed alpha ovlps")
+        print(alpha_block_ovlps)
+
+    # Loop over every ket-SD
+    wfo = np.zeros((bra_states, ket_states))
+    for ket_alpha_block, ket_beta_block, kc in zip(ka_blks, kb_blks, kci):
+        SS = alpha_block_ovlps[ba_blks,ket_alpha_block] * beta_block_ovlps[bb_blks,ket_beta_block]
+        dSS = (bci * SS[:,None]).sum(axis=0)
+        wfo += np.outer(dSS, kc)
+
+    return wfo
