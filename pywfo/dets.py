@@ -40,16 +40,16 @@ def get_dets(ci_coeffs, ci_thresh=.1):
 
 
 def expand_det_string(det_str, nalpha, nbeta):
-    # Number of alpha (beta) electrons already found
+    """Translate det_str into MO indices and get permutation factor."""
+
+    # Number of alpha electrons already found
     na = 0
-    nb = 0
-    # Number of alpha electrons reamining to be found
+    # Number of permutation to get aaaabbbb-ordering so the SD overlap
+    # becomes block-diagonal.
     permutations = 0
     # Alpha/beta SDs holding the corresponding orbital indices
     alpha_inds = list()
     beta_inds = list()
-    # alpha_det = [0 for np.zeros(nalpha, dtype=int)
-    # beta_det = np.zeros(nbeta, dtype=int)
 
     # The overlap of two Slater-determinants is given by the determinant
     # of the overlap matrix of the spin orbitals that make up the two SDs.
@@ -72,22 +72,17 @@ def expand_det_string(det_str, nalpha, nbeta):
     for i, char in enumerate(det_str):
         # Alpha spin orbital
         if char == "a":
-            # alpha_det[na] = i
             alpha_inds.append(i)
             na += 1
         # Beta spin orbital
         elif char == "b":
-            # beta_det[nb] = i
             beta_inds.append(i)
             permutations += nalpha - na
         # Doubly occupied, alpha and beta spin orbitals
         elif char == "d":
-            # alpha_det[na] = i
-            # beta_det[nb] = i
             alpha_inds.append(i)
             beta_inds.append(i)
             na += 1
-            nb += 1
             permutations += nalpha - na
         # Empty
         elif char == "e":
@@ -98,11 +93,11 @@ def expand_det_string(det_str, nalpha, nbeta):
     # Permuting two rows or two columns of a determinant changes its sign.
     prefactor = (-1)**permutations
 
-    # return prefactor, alpha_det, beta_det
     return prefactor, alpha_inds, beta_inds
 
 
 def get_dets_str(dets, coeffs):
+    """Create str for dets input for wfoverlap."""
     states = len(coeffs[0])
     det_len = len(dets[0])
     det_num = len(dets)
@@ -116,8 +111,6 @@ def get_dets_str(dets, coeffs):
 
 
 BlockResult = namedtuple(
-    # "BlockResult", "block_num super_block_num blocks block_map super_map " \
-                   # "sort_inds ci_coeffs"
     "BlockResult", "block_num super_block_num blocks " \
                    "block_map super_map ci_block_map " \
                    "sort_inds"
@@ -164,6 +157,9 @@ def block_dets(dets, ci_coeffs):
 
 
 def prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh, det_fn=None):
+    """Create SDs from given CI-coefficients while taking into
+    account the sign change that arises from swapping columns of a
+    determinant."""
     signs, dets, inds, coeffs = get_dets(ci_coeffs, ci_thresh)
 
     prefacts, alpha_dets, beta_dets = zip(*[expand_det_string(det, n_alpha, n_beta)
@@ -215,6 +211,7 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO,
     bra_states = bra_ci.shape[0]
     ket_states = ket_ci.shape[0]
 
+    # Simple wrapper for prepare_data
     def prep(ci_coeffs):
         return prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh)
 
