@@ -57,6 +57,24 @@ def dbg_print(blocked, coeffs):
     print()
 
 
+def prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh, det_fn=None):
+    signs, dets, inds, coeffs = get_dets(ci_coeffs, ci_thresh)
+
+    prefacts, alpha_dets, beta_dets = zip(*[expand_det_string(det, n_alpha, n_beta)
+                                            for det in dets])
+    prefacts = np.array(prefacts)
+    coeffs *= prefacts[:,None]# * signs[:,None]
+    alpha_blocked = block_dets(alpha_dets, coeffs)
+    beta_blocked = block_dets(beta_dets, coeffs)
+
+    if det_fn:
+        det_str = get_dets_str(dets, coeffs)
+        with open(det_fn, "w") as handle:
+            handle.write(det_str)
+
+    return coeffs, alpha_blocked, beta_blocked
+
+
 def precompute(bra_blocked, ket_blocked, mo_ovlps):
     block_ovlps = np.zeros((bra_blocked.block_num, ket_blocked.block_num))
 
@@ -65,19 +83,6 @@ def precompute(bra_blocked, ket_blocked, mo_ovlps):
             ovlp_mat = mo_ovlps[bra_block][:,ket_block]
             block_ovlps[i,j] = np.linalg.det(ovlp_mat)
     return block_ovlps
-
-
-def prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh):
-    signs, dets, inds, coeffs = get_dets(ci_coeffs, ci_thresh)
-
-    prefacts, alpha_dets, beta_dets = zip(*[expand_det_string(det, n_alpha, n_beta)
-                                            for det in dets])
-    bra_prefacts = np.array(bra_prefacts)
-    coeffs *= prefacts[:,None]# * signs[:,None]
-    alpha_blocked = block_dets(alpha_dets, bra_coeffs)
-    beta_blocked = block_dets(beta_dets, bra_coeffs)
-
-    return coeffs, alpha_blocked, beta_blocked
 
 
 def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO, closed_shell=True):
@@ -92,34 +97,11 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO, closed_shell=Tr
     bra_states = bra_ci.shape[0]
     ket_states = ket_ci.shape[0]
 
-    bra_signs, bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
-    ket_signs, ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
+    def prep(ci_coeffs):
+        return prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh)
 
-    # bra_det_str = get_dets_str(bra_dets, bra_coeffs)
-    # ket_det_str = get_dets_str(ket_dets, ket_coeffs)
-    # with open("bra_dets", "w") as handle:
-        # handle.write(bra_det_str)
-    # with open("ket_dets", "w") as handle:
-        # handle.write(ket_det_str)
-
-    # Bra
-    bra_prefacts, bra_alpha, bra_beta = zip(*[expand_det_string(det, n_alpha, n_beta)
-                                              for det in bra_dets])
-    bra_prefacts = np.array(bra_prefacts)
-    # bra_coeffs *= bra_prefacts[:,None] * bra_signs[:,None]
-    bra_coeffs *= bra_prefacts[:,None]# * bra_signs[:,None]
-    bra_alpha_blocked = block_dets(bra_alpha, bra_coeffs)
-    bra_beta_blocked = block_dets(bra_beta, bra_coeffs)
-
-    # Ket
-    ket_prefacts, ket_alpha, ket_beta = zip(*[expand_det_string(det, n_alpha, n_beta)
-                                              for det in ket_dets])
-    ket_prefacts = np.array(ket_prefacts)
-    # ket_coeffs = ket_coeffs * ket_prefacts[:,None] * ket_signs[:,None]
-    ket_coeffs = ket_coeffs * ket_prefacts[:,None]# * ket_signs[:,None]
-
-    ket_alpha_blocked = block_dets(ket_alpha, ket_coeffs)
-    ket_beta_blocked = block_dets(ket_beta, ket_coeffs)
+    bra_coeffs, bra_alpha_blocked, bra_beta_blocked = prep(bra_ci)
+    ket_coeffs, ket_alpha_blocked, ket_beta_blocked = prep(ket_ci)
 
     ba_blocks = bra_alpha_blocked.block_num
     ka_blocks = ket_alpha_blocked.block_num
