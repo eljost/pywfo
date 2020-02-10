@@ -265,14 +265,18 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO,
 
     # Precontract MO coefficients with AO overlaps
     mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
+
+    # Precomputation of SD overlaps
     beta_block_ovlps = precompute(bra_beta_blocked, ket_beta_blocked, mo_ovlps)
     alpha_block_ovlps = precompute(bra_alpha_blocked, ket_alpha_blocked, mo_ovlps)
 
     if debug:
-        print("precomputed beta ovlps")
+        print("Precomputed beta ovlps")
         print(beta_block_ovlps)
-        print("precomputed alpha ovlps")
+        print()
+        print("Precomputed alpha ovlps")
         print(alpha_block_ovlps)
+        print()
 
     # Loop over every ket-SD
     wfo = np.zeros((bra_states, ket_states))
