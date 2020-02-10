@@ -6,7 +6,8 @@ import numpy as np
 BlockResult = namedtuple(
     # "BlockResult", "block_num super_block_num blocks block_map super_map " \
                    # "sort_inds ci_coeffs"
-    "BlockResult", "block_num super_block_num blocks block_map super_map " \
+    "BlockResult", "block_num super_block_num blocks " \
+                   "block_map super_map ci_block_map " \
                    "sort_inds"
 )
 
@@ -35,12 +36,16 @@ def block_dets(dets, ci_coeffs):
                 super_map.append(block_ind)
         block_map.append(block_ind)
 
+    ci_block_map = np.zeros_like(block_map)
+    ci_block_map[sort_inds] = block_map
+
     res = BlockResult(
             block_ind+1,
             super_block_ind+1,
             blocks,
             block_map,
             super_map,
+            ci_block_map,
             sort_inds,
     )
     return res
@@ -120,24 +125,19 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO, closed_shell=Tr
     print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
     print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
 
-    print("bra alpha")
-    dbg_print(bra_alpha_blocked, bra_coeffs)
-    print("bra beta")
-    dbg_print(bra_beta_blocked, bra_coeffs)
-    print("ket alpha")
-    dbg_print(ket_alpha_blocked, ket_coeffs)
-    print("ket beta")
-    dbg_print(ket_beta_blocked, ket_coeffs)
+    # print("bra alpha")
+    # dbg_print(bra_alpha_blocked, bra_coeffs)
+    # print("bra beta")
+    # dbg_print(bra_beta_blocked, bra_coeffs)
+    # print("ket alpha")
+    # dbg_print(ket_alpha_blocked, ket_coeffs)
+    # print("ket beta")
+    # dbg_print(ket_beta_blocked, ket_coeffs)
 
-    def ci_block_map(block_map, sort_inds):
-        _ = np.zeros_like(block_map, dtype=int)
-        _[sort_inds] = block_map
-        return _
-
-    bac = ci_block_map(bra_alpha_blocked.block_map, bra_alpha_blocked.sort_inds)
-    bbc = ci_block_map(bra_beta_blocked.block_map, bra_beta_blocked.sort_inds)
-    kac = ci_block_map(ket_alpha_blocked.block_map, ket_alpha_blocked.sort_inds)
-    kbc = ci_block_map(ket_beta_blocked.block_map, ket_beta_blocked.sort_inds)
+    bac = bra_alpha_blocked.ci_block_map
+    bbc = bra_beta_blocked.ci_block_map
+    kac = ket_alpha_blocked.ci_block_map
+    kbc = ket_beta_blocked.ci_block_map
 
     def reorder_ci(sort_inds, alpha_map, beta_map, ci_coeffs):
         ci_inds = ci_coeffs[sort_inds,:] 
@@ -165,7 +165,6 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO, closed_shell=Tr
     # Loop over every ket-SD
     wfo = np.zeros((bra_states, ket_states))
     for ket_alpha_block, ket_beta_block, kc in zip(ka_blks, kb_blks, kci):
-        # print(ket_alpha_block, ket_beta_block, kc)
         SS = alpha_block_ovlps[ba_blks,ket_alpha_block] * beta_block_ovlps[bb_blks,ket_beta_block]
         dSS = (bci * SS[:,None]).sum(axis=0)
         wfo += np.outer(dSS, kc)
