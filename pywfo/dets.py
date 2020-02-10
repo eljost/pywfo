@@ -3,9 +3,6 @@ from collections import namedtuple
 import numpy as np
 
 
-np.set_printoptions(suppress=True, precision=8, linewidth=120)
-
-
 BlockResult = namedtuple(
     # "BlockResult", "block_num super_block_num blocks block_map super_map " \
                    # "sort_inds ci_coeffs"
@@ -70,27 +67,57 @@ def precompute(bra_blocked, ket_blocked, mo_ovlps):
     return block_ovlps
 
 
-def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO):
+def prepare_data(ci_coeffs, n_alpha, n_beta, ci_thresh):
+    signs, dets, inds, coeffs = get_dets(ci_coeffs, ci_thresh)
+
+    prefacts, alpha_dets, beta_dets = zip(*[expand_det_string(det, n_alpha, n_beta)
+                                            for det in dets])
+    bra_prefacts = np.array(bra_prefacts)
+    coeffs *= prefacts[:,None]# * signs[:,None]
+    alpha_blocked = block_dets(alpha_dets, bra_coeffs)
+    beta_blocked = block_dets(beta_dets, bra_coeffs)
+
+    return coeffs, alpha_blocked, beta_blocked
+
+
+def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO, closed_shell=True):
+    # Right now only closed shell is supported
+    assert closed_shell
+    # Assert same number of MOs for bra and ket
+    np.testing.assert_allclose(bra_ci.shape[1:], ket_ci.shape[1:])
+
+    n_alpha = bra_ci.shape[1]
+    n_beta = n_alpha
+
     bra_states = bra_ci.shape[0]
     ket_states = ket_ci.shape[0]
 
-    bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
-    ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
+    bra_signs, bra_dets, bra_inds, bra_coeffs = get_dets(bra_ci, ci_thresh)
+    ket_signs, ket_dets, ket_inds, ket_coeffs = get_dets(ket_ci, ci_thresh)
 
-    bra_det_str = get_dets_str(bra_dets, bra_coeffs)
-    ket_det_str = get_dets_str(ket_dets, ket_coeffs)
-    with open("bra_dets", "w") as handle:
-        handle.write(bra_det_str)
-    with open("ket_dets", "w") as handle:
-        handle.write(ket_det_str)
+    # bra_det_str = get_dets_str(bra_dets, bra_coeffs)
+    # ket_det_str = get_dets_str(ket_dets, ket_coeffs)
+    # with open("bra_dets", "w") as handle:
+        # handle.write(bra_det_str)
+    # with open("ket_dets", "w") as handle:
+        # handle.write(ket_det_str)
 
     # Bra
-    bra_alpha, bra_beta = zip(*[expand_det(det) for det in bra_dets])
+    bra_prefacts, bra_alpha, bra_beta = zip(*[expand_det_string(det, n_alpha, n_beta)
+                                              for det in bra_dets])
+    bra_prefacts = np.array(bra_prefacts)
+    # bra_coeffs *= bra_prefacts[:,None] * bra_signs[:,None]
+    bra_coeffs *= bra_prefacts[:,None]# * bra_signs[:,None]
     bra_alpha_blocked = block_dets(bra_alpha, bra_coeffs)
     bra_beta_blocked = block_dets(bra_beta, bra_coeffs)
 
     # Ket
-    ket_alpha, ket_beta = zip(*[expand_det(det) for det in ket_dets])
+    ket_prefacts, ket_alpha, ket_beta = zip(*[expand_det_string(det, n_alpha, n_beta)
+                                              for det in ket_dets])
+    ket_prefacts = np.array(ket_prefacts)
+    # ket_coeffs = ket_coeffs * ket_prefacts[:,None] * ket_signs[:,None]
+    ket_coeffs = ket_coeffs * ket_prefacts[:,None]# * ket_signs[:,None]
+
     ket_alpha_blocked = block_dets(ket_alpha, ket_coeffs)
     ket_beta_blocked = block_dets(ket_beta, ket_coeffs)
 
@@ -106,19 +133,19 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO):
     print(f"Block determinants: {block_det_num: >16d}")
     print()
 
-    # print(f"<bra| alpha super-blocks: {bra_alpha_blocked.super_block_num: >16d}")
-    # print(f"|ket> alpha super-blocks: {ket_alpha_blocked.super_block_num: >16d}")
-    # print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
-    # print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
+    print(f"<bra| alpha super-blocks: {bra_alpha_blocked.super_block_num: >16d}")
+    print(f"|ket> alpha super-blocks: {ket_alpha_blocked.super_block_num: >16d}")
+    print(f"<bra|  beta super-blocks: {bra_beta_blocked.super_block_num: >16d}")
+    print(f"|ket>  beta super-blocks: {ket_beta_blocked.super_block_num: >16d}")
 
-    # print("bra alpha")
-    # dbg_print(bra_alpha_blocked, bra_coeffs)
-    # print("bra beta")
-    # dbg_print(bra_beta_blocked, bra_coeffs)
-    # print("ket alpha")
-    # dbg_print(ket_alpha_blocked, ket_coeffs)
-    # print("ket beta")
-    # dbg_print(ket_beta_blocked, ket_coeffs)
+    print("bra alpha")
+    dbg_print(bra_alpha_blocked, bra_coeffs)
+    print("bra beta")
+    dbg_print(bra_beta_blocked, bra_coeffs)
+    print("ket alpha")
+    dbg_print(ket_alpha_blocked, ket_coeffs)
+    print("ket beta")
+    dbg_print(ket_beta_blocked, ket_coeffs)
 
     def ci_block_map(block_map, sort_inds):
         _ = np.zeros_like(block_map, dtype=int)
@@ -148,11 +175,9 @@ def wfoverlap(bra_mos, ket_mos, bra_ci, ket_ci, ci_thresh, S_AO):
     # Sort acording to Q (alpha), so P (beta) has to be re-sorted.
     # print("beta ovlps")
     beta_block_ovlps = precompute(bra_beta_blocked, ket_beta_blocked, mo_ovlps)
-    beta_block_ovlps[:,-1] = 0.
     # print(beta_block_ovlps)
     # print("alpha ovlps")
     alpha_block_ovlps = precompute(bra_alpha_blocked, ket_alpha_blocked, mo_ovlps)
-    alpha_block_ovlps[:,-1] = 0.
     # print(alpha_block_ovlps)
 
     # Loop over every ket-SD
@@ -171,16 +196,18 @@ def get_dets(ci_coeffs, ci_thresh=.1):
     base_det = list("d" * occ + "e" * virt)
     state, from_, to = np.nonzero(np.abs(ci_coeffs) > ci_thresh)
 
-    spin_adapt = (np.array((1, -1)) * 1/(2**0.5))[:,None]
+    sa_factor = (np.array((1, -1))/(2**0.5))[:,None]
 
-    # signs = list()
     dets = list()
     indices = list()
     coeffs = list()
-    signs = (-1)**(occ - from_ + 1)
+
+    signs = np.repeat((-1)**(occ - from_ + 1), 2)
+
     for sign, f, t in zip(signs, from_, to):
-        cfs = ci_coeffs[:,f,t] * spin_adapt
-        coeffs.extend(sign * cfs)
+        cfs = ci_coeffs[:,f,t] * sa_factor
+        # coeffs.extend(sign * cfs)
+        coeffs.extend(cfs)
         t += occ
         # Excitation of alpha; beta left behind
         ab_det = base_det.copy()
@@ -195,7 +222,70 @@ def get_dets(ci_coeffs, ci_thresh=.1):
         dets.append("".join(ba_det))
         indices.append(("b", f, t))
     coeffs = np.array(coeffs)
-    return dets, indices, coeffs
+    return signs, dets, indices, coeffs
+
+
+def expand_det_string(det_str, nalpha, nbeta):
+    # Number of alpha (beta) electrons already found
+    na = 0
+    nb = 0
+    # Number of alpha electrons reamining to be found
+    permutations = 0
+    # Alpha/beta SDs holding the corresponding orbital indices
+    alpha_inds = list()
+    beta_inds = list()
+    # alpha_det = [0 for np.zeros(nalpha, dtype=int)
+    # beta_det = np.zeros(nbeta, dtype=int)
+
+    # The overlap of two Slater-determinants is given by the determinant
+    # of the overlap matrix of the spin orbitals that make up the two SDs.
+    # When the SDs are sorted in a way that alpha spin orbitals appear before
+    # beta spin orbitals the determinant of the overlap matrix becomes block
+    # diagonal, so we may have to resort the determinant/permute the orbitals.
+    #
+    # Whenever we find a beta-electron but there are still alpha-electrons
+    # to be found we have to do permuations. E.g. if we find a beta electron
+    # and there are still 4 alpha electrons left we have to do four permuations
+    # to bring the beta electron to the end of the determinant.
+    #   0: baaaa
+    #   --start--
+    #   1: abaaa
+    #   2: aabaa
+    #   3: aaaba
+    #   4: aaaab
+    #   --sorted after 4 permutations--
+
+    for i, char in enumerate(det_str):
+        # Alpha spin orbital
+        if char == "a":
+            # alpha_det[na] = i
+            alpha_inds.append(i)
+            na += 1
+        # Beta spin orbital
+        elif char == "b":
+            # beta_det[nb] = i
+            beta_inds.append(i)
+            permutations += nalpha - na
+        # Doubly occupied, alpha and beta spin orbitals
+        elif char == "d":
+            # alpha_det[na] = i
+            # beta_det[nb] = i
+            alpha_inds.append(i)
+            beta_inds.append(i)
+            na += 1
+            nb += 1
+            permutations += nalpha - na
+        # Empty
+        elif char == "e":
+            continue
+        else:
+            raise Exception( "Invalid det string. Expected one of 'deab' "
+                            f"but got {char} at index {i}!")
+    # Permuting two rows or two columns of a determinant changes its sign.
+    prefactor = (-1)**permutations
+
+    # return prefactor, alpha_det, beta_det
+    return prefactor, alpha_inds, beta_inds
 
 
 def get_dets_str(dets, coeffs):
