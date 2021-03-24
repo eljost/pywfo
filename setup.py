@@ -1,4 +1,5 @@
 from os import path
+# from packaging.version import parse
 from setuptools import find_packages, setup
 import sys
 
@@ -12,6 +13,7 @@ with open(path.join(this_directory, 'README.md')) as handle:
 
 setup(
     name="pywfo",
+    # version=parse("0.0.1"),
     version="0.0.1",
     description="Wavefunction overlaps in python.",
     long_description=long_description,

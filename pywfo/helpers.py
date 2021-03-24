@@ -2,6 +2,10 @@ import numpy as np
 
 
 def get_dummy_mos(num, seed=None):
+    """Dummy molecular orbital matrix.
+
+    Orthogonalizes a matrix of random entries.
+    """
     if seed is not None:
         np.random.seed(seed)
 
