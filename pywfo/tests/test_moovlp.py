@@ -5,7 +5,6 @@ from pywfo.helpers import perturb_mat
 
 
 def test_moovlps():
-
     # Set up fake MOs
     np.random.seed(20180325)
     mo0 = np.random.rand(*(10, 10))
