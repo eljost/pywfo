@@ -126,3 +126,22 @@ def test_cytosin_wfoverlaps(ci_thresh, ref_ovlps, this_dir):
     print(ovlps)
     ref_ovlps = np.array(ref_ovlps).reshape(ovlps.shape)
     np.testing.assert_allclose(ovlps, ref_ovlps, atol=2e-3)
+
+
+def test_h2o2_wfoverlaps(this_dir):
+    """H2O2, BP86/def2-SVP TD-DFT with 4 states.
+
+    Second geometry has slightly rotated dihedral.
+    """
+    with h5py.File(this_dir / "h2o2_overlap_data.h5") as handle:
+        mo_coeffs = handle["mo_coeffs"][:]
+        ci_coeffs = handle["ci_coeffs"][:]
+    assert mo_coeffs.shape[0] == 2
+
+    bra_mos, ket_mos = mo_coeffs
+    bra_ci, ket_ci = ci_coeffs
+
+    occ = bra_ci[0].shape[0]
+
+    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ao_ovlps="ket")
+    print(ovlps)

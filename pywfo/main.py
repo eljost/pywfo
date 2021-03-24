@@ -142,7 +142,6 @@ def overlaps(
         ovlp_mat = mo_ovlps[bra_inds][:, ket_inds]
         ovlp_mat *= bra_sign * ket_sign
         ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
-    # for k,v in ovlps.items(): print(k, f"{v: >10.6f}")
 
     state_inds = it.product(range(bra_ci.shape[0]), range(ket_ci.shape[0]))
     wf_ovlps = list()
