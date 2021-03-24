@@ -10,7 +10,7 @@ from pywfo.helpers import perturb_mat, get_dummy_mos
 np.set_printoptions(suppress=True, precision=6)
 
 
-def test_moovlps():
+def test_mo_overlaps():
     """Test calculation of MO overlaps."""
 
     # Set up dummy MOs
@@ -29,6 +29,27 @@ def test_moovlps():
     ovlp_dots = moovlp_dots(mo0, mo1, S_AO)
     np.testing.assert_allclose(ovlp_expl, ovlp)
     np.testing.assert_allclose(ovlp_dots, ovlp)
+
+
+def test_big_mo_overlaps():
+    """Test calculation of big MO matrix overlaps."""
+
+    mos_fn = "big_mos.npy"
+    s_ao_fn = "big_mos_s_ao.npy"
+    # Set up dummy data
+    # dim_ = 1000
+    # mos = get_dummy_mos(dim_, 20180325)
+    # np.save(mos_fn, mos)
+    # mos_inv = np.linalg.inv(mos)
+    # S_AO = mos_inv.dot(mos_inv.T)
+    # np.save(s_ao_fn, S_AO)
+
+    mos = np.load(mos_fn)
+    dim_ = mos.shape[0]
+    S_AO = np.load(s_ao_fn)
+
+    ovlps = moovlp(mos, mos, S_AO)
+    np.testing.assert_allclose(ovlps.flatten(), np.eye(dim_).flatten(), atol=1e-8)
 
 
 def test_dummy_wfoverlaps():
