@@ -4,18 +4,17 @@ import h5py
 import numpy as np
 
 from pywfo.main import overlaps, overlaps2, moovlp, moovlp_expl, moovlp_dots
-from pywfo.helpers import perturb_mat
+from pywfo.helpers import perturb_mat, get_dummy_mos
 
 
 np.set_printoptions(suppress=True, precision=6)
 
 
 def test_moovlps():
-    # Set up fake MOs
-    np.random.seed(20180325)
-    mo0 = np.random.rand(*(10, 10))
-    mo0, _ = np.linalg.qr(mo0, mode="complete")
-    mo0 = mo0.T
+    """Test calculation of MO overlaps."""
+
+    # Set up dummy MOs
+    mo0 = get_dummy_mos(10, 20180325)
 
     # Slightly perturb original matrix
     mo1, _ = np.linalg.qr(perturb_mat(mo0.T), mode="complete")
@@ -33,19 +32,15 @@ def test_moovlps():
 
 
 def test_ovlps():
-    # Construct dummy MOs
-    np.random.seed(20180325)
     dim_ = 4
     occ = 2
-    states = 2
     virt = dim_ - occ
-    _ = np.random.rand(dim_, dim_)
-    bra_mos, _ = np.linalg.qr(_, mode="complete")
-    # MOs are given per row
-    bra_mos = bra_mos.T
+    states = 2
+
+    # Set up dummy MOs
+    bra_mos = get_dummy_mos(dim_, 20180325)
     ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
     ket_mos = ket_mos.T
-    # ket_mos = bra_mos
 
     print("Bra MOs")
     print(bra_mos)
@@ -67,30 +62,11 @@ def test_ovlps():
 
     bra_ci, ket_ci = cis_
 
-    # c = np.zeros((2,2))
-    # c[1,0] = .7
-    # c[1,1] = .6
-    # ex_ = np.nonzero(c > ci_thresh)
-    # _ = get_sd_mo_inds(bra_mos, exc=ex_)
-
-    # bra_mos_inv = np.linalg.inv(bra_mos)
-    # S_AO = bra_mos_inv.dot(bra_mos_inv.T)
-    # write_ref_data(bra_mos, ket_mos, S_AO)
-
     # Without GS
     ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
     print(ovlps)
     ref_ovlps = np.array(((-0.0237519286, 0.9491140278), (0.9614129472, 0.0272071813)))
     np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
-
-    # With GS
-    # ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=True)
-    # ref_ovlps = np.array((
-    # (0.9695194141,  0.0000000000, 0.00000000000),
-    # (0.0000000000, -0.0237519286, 0.9491140278),
-    # (0.0000000000,  0.9614129472, 0.0272071813))
-    # )
-    # np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
 
 
 @pytest.mark.parametrize(
