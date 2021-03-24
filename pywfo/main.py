@@ -21,11 +21,12 @@ def moovlp(mos1, mos2, S_AO):
     # If we only supply a subset of MOs like in an excited state SD then this
     # will not work. So I deactivate it for now.
     # if S_AO is None:
-        # mos1_inv = np.linalg.inv(mos1)
-        # S_AO = mos1_inv.dot(mos1_inv.T)
+    # mos1_inv = np.linalg.inv(mos1)
+    # S_AO = mos1_inv.dot(mos1_inv.T)
 
-    ovlp = np.einsum("pu,qv,uv->pq", mos1, mos2, S_AO,
-                     optimize=['einsum_path', (0, 2), (0, 1)])
+    ovlp = np.einsum(
+        "pu,qv,uv->pq", mos1, mos2, S_AO, optimize=["einsum_path", (0, 2), (0, 1)]
+    )
     return ovlp
 
 
@@ -42,14 +43,15 @@ def moovlp_expl(mos1, mos2, S_AO):
     pv = np.zeros((P, V))
     for p in range(P):
         for v in range(V):
-            pv[p,v] = (S_AO[:,v]*mos1[p,:]).sum()
+            pv[p, v] = (S_AO[:, v] * mos1[p, :]).sum()
 
     pq = np.zeros((P, Q))
     for p in range(P):
         for q in range(Q):
-            pq[p,q] = (pv[p,:] * mos2[q,:]).sum()
+            pq[p, q] = (pv[p, :] * mos2[q, :]).sum()
 
     return pq
+
 
 @numba.jit(nopython=True)
 def moovlp_dots(mos1, mos2, S_AO):
@@ -61,8 +63,9 @@ def moovlp_dots(mos1, mos2, S_AO):
     return mos1.dot(S_AO).dot(mos2.T)
 
 
-def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
-             ao_ovlps="bra"):
+def overlaps(
+    bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=0.5, with_gs=False, ao_ovlps="bra"
+):
     assert bra_mos.shape == ket_mos.shape
     assert bra_ci.shape == ket_ci.shape
 
@@ -73,7 +76,7 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
     def get_sd_mo_inds(exc=None):
         """Alpha & beta MO indices for (excited) Slater determinants."""
         if exc is None:
-            return (occ_mos, ), (occ_mos, )
+            return (occ_mos,), (occ_mos,)
 
         alpha_mos = list()
         beta_mos = list()
@@ -105,12 +108,12 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
     # unique_ovlps = set()
     # per_state = list()
     # for bra_state, ket_state in it.product(bra_ci, ket_ci):
-        # # Select CI coefficients above the given threshold
-        # bra_exc = [(f, t) for f, t in zip(*np.nonzero(np.abs(bra_state) > ci_thresh))]
-        # ket_exc = [(f, t) for f, t in zip(*np.nonzero(np.abs(ket_state) > ci_thresh))]
-        # combinations = tuple(it.product(bra_exc, ket_exc))
-        # per_state.append(combinations)
-        # unique_ovlps |= set(combinations)
+    # # Select CI coefficients above the given threshold
+    # bra_exc = [(f, t) for f, t in zip(*np.nonzero(np.abs(bra_state) > ci_thresh))]
+    # ket_exc = [(f, t) for f, t in zip(*np.nonzero(np.abs(ket_state) > ci_thresh))]
+    # combinations = tuple(it.product(bra_exc, ket_exc))
+    # per_state.append(combinations)
+    # unique_ovlps |= set(combinations)
 
     # # Determine unique bra and ket-SDs
     # bra_sds, ket_sds = zip(*unique_ovlps)
@@ -130,14 +133,14 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
     # slater_dets = dict()
 
     # def form_sd(inds, braket):
-        # from_, to = inds
-        # mo_inds = occ_mo_list.copy()
-        # # Delete particle orbital
-        # mo_inds.remove(from_)
-        # # Add hole orbital
-        # mo_inds.append(to + occ)
-        # sign = (-1)**(occ - from_ + 1)
-        # slater_dets[(braket, inds)] = (sign, mo_inds)
+    # from_, to = inds
+    # mo_inds = occ_mo_list.copy()
+    # # Delete particle orbital
+    # mo_inds.remove(from_)
+    # # Add hole orbital
+    # mo_inds.append(to + occ)
+    # sign = (-1)**(occ - from_ + 1)
+    # slater_dets[(braket, inds)] = (sign, mo_inds)
 
     # [form_sd(bra_sd, "bra") for bra_sd in bra_sds]
     # [form_sd(ket_sd, "ket") for ket_sd in ket_sds]
@@ -149,15 +152,15 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
 
     # ovlps = dict()
     # for (bra, ket) in unique_ovlps:
-        # bra_sign, bra_inds = slater_dets[("bra", bra)]
-        # ket_sign, ket_inds = slater_dets[("ket", ket)]
-        # ovlp_mat = moovlp_dots(bra_mos[bra_inds], ket_mos[ket_inds], S_AO)
-        # ovlp_mat *= bra_sign * ket_sign
-        # ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
+    # bra_sign, bra_inds = slater_dets[("bra", bra)]
+    # ket_sign, ket_inds = slater_dets[("ket", ket)]
+    # ovlp_mat = moovlp_dots(bra_mos[bra_inds], ket_mos[ket_inds], S_AO)
+    # ovlp_mat *= bra_sign * ket_sign
+    # ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
     # # for k,v in ovlps.items(): print(k, f"{v: >10.6f}")
 
     # Factor needed to construct spin-adapted excitations
-    _ = 1/(2**0.5)
+    _ = 1 / (2 ** 0.5)
     spin_adapt = np.array((_, -_))[None, :]
 
     wf_ovlps = list()
@@ -205,22 +208,23 @@ def overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
     # wf_ovlps = list()
     # none_none = ovlps[(None), (None)]
     # for (i, j), a in zip(state_inds, per_state):
-        # bra_inds, ket_inds = zip(*a)
-        # bra_coeffs = np.array([bra_ci[i][bi] for bi in bra_inds])
-        # ket_coeffs = np.array([ket_ci[j][ki] for ki in ket_inds])
-        # bra_none = np.array([ovlps[(bi, None)] for bi in bra_inds])
-        # none_ket = np.array([ovlps[(None, ki)] for ki in ket_inds])
-        # bra_ket = np.array([ovlps[_] for _ in a])
-        # wf_ovlps.append(
-            # (bra_coeffs * ket_coeffs * [none_none * bra_ket - bra_none * none_ket]).sum()
-        # )
+    # bra_inds, ket_inds = zip(*a)
+    # bra_coeffs = np.array([bra_ci[i][bi] for bi in bra_inds])
+    # ket_coeffs = np.array([ket_ci[j][ki] for ki in ket_inds])
+    # bra_none = np.array([ovlps[(bi, None)] for bi in bra_inds])
+    # none_ket = np.array([ovlps[(None, ki)] for ki in ket_inds])
+    # bra_ket = np.array([ovlps[_] for _ in a])
+    # wf_ovlps.append(
+    # (bra_coeffs * ket_coeffs * [none_none * bra_ket - bra_none * none_ket]).sum()
+    # )
     wf_ovlps = np.reshape(wf_ovlps, (len(bra_ci), -1))
 
     return wf_ovlps
 
 
-def overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False,
-             ao_ovlps="bra"):
+def overlaps2(
+    bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=0.5, with_gs=False, ao_ovlps="bra"
+):
     assert bra_mos.shape == ket_mos.shape
     assert bra_ci.shape == ket_ci.shape
 
@@ -276,7 +280,7 @@ def overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False
         mo_inds.remove(from_)
         # Add hole orbital
         mo_inds.append(to + occ)
-        sign = (-1)**(occ - from_ + 1)
+        sign = (-1) ** (occ - from_ + 1)
         slater_dets[(braket, inds)] = (sign, mo_inds)
 
     [form_sd(bra_sd, "bra") for bra_sd in bra_sds]
@@ -294,7 +298,7 @@ def overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False
     for (bra, ket) in unique_ovlps:
         bra_sign, bra_inds = slater_dets[("bra", bra)]
         ket_sign, ket_inds = slater_dets[("ket", ket)]
-        ovlp_mat = mo_ovlps[bra_inds][:,ket_inds]
+        ovlp_mat = mo_ovlps[bra_inds][:, ket_inds]
         ovlp_mat *= bra_sign * ket_sign
         ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
     # for k,v in ovlps.items(): print(k, f"{v: >10.6f}")
@@ -310,7 +314,9 @@ def overlaps2(bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=.5, with_gs=False
         none_ket = np.array([ovlps[(None, ki)] for ki in ket_inds])
         bra_ket = np.array([ovlps[_] for _ in a])
         wf_ovlps.append(
-            (bra_coeffs * ket_coeffs * [none_none * bra_ket - bra_none * none_ket]).sum()
+            (
+                bra_coeffs * ket_coeffs * [none_none * bra_ket - bra_none * none_ket]
+            ).sum()
         )
     wf_ovlps = np.reshape(wf_ovlps, (len(bra_ci), -1))
 
