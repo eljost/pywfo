@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # [1] https://pubs.acs.org/doi/10.1021/acs.jctc.5b01148
 #     Efficient and Flexible Computation of Many-Electron Wave Function Overlaps
 #     Plasser, 2016
@@ -17,8 +15,8 @@ def moovlp(mos1, mos2, S_AO):
     <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
     """
 
-    # S_AO == None will only work if mos1 are comprise all MOs (occ. + virt.).
-    # If we only supply a subset of MOs like in an excited state SD then this
+    # S_AO == None will only work if mos1 comprise all MOs (occ. + virt.).
+    # If we only supply a subset of MOs like in an excited state SD, then this
     # will not work. So I deactivate it for now.
     # if S_AO is None:
     # mos1_inv = np.linalg.inv(mos1)
@@ -32,6 +30,8 @@ def moovlp(mos1, mos2, S_AO):
 
 def moovlp_expl(mos1, mos2, S_AO):
     """Overlap between two sets of MOs.
+
+    Explicit loops.
 
     <phi_p|phi_q> = sum_{u,v} C_{pu} C'_{qv} <X_u|X'_v>
     """

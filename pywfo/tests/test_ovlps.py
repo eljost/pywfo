@@ -5,7 +5,8 @@ import pytest
 import h5py
 import numpy as np
 
-from ..main import overlaps, overlaps2
+from pywfo.main import overlaps, overlaps2
+from pywfo.helpers import perturb_mat
 
 
 np.set_printoptions(suppress=True, precision=6)
@@ -27,13 +28,6 @@ def write_ref_data(a_mo, b_mo, S_AO=None, out_dir="ref"):
             S_AO_str = f"{a_AOs} {b_AOs}\n{_.getvalue()}"
         with open(f"{out_dir}/ao_ovlp", "w") as handle:
             handle.write(S_AO_str)
-
-
-def perturb_mat(mat, scale=2e-1):
-    """Add (small) random perturbations to the given matrix.
-    This may simulate a small change in the MO-coefficients at a different
-    geometry."""
-    return mat + np.random.rand(*mat.shape)*scale
 
 
 def test_ovlps():
