@@ -80,8 +80,8 @@ def overlaps(
     bra_ci,
     ket_ci,
     occ,
-    ci_thresh=0.001,
-    with_gs=False,
+    ci_thresh=1e-4,
+    with_gs=True,
     ao_ovlps="ket",
 ):
     assert bra_mos.shape == ket_mos.shape
@@ -106,7 +106,7 @@ def overlaps(
     def count_slater_dets(ci_coeffs, infix):
         # Select CI coefficients above the given threshold
         # and drop first dimension (number of states)
-        _, *ci_above_thresh = np.nonzero(np.abs(ci_coeffs) > ci_thresh)
+        _, *ci_above_thresh = np.nonzero(np.abs(ci_coeffs) >= ci_thresh)
         sds = set(tuple(zip(*ci_above_thresh)))
         log(f"{len(sds)} {infix} SDs")
         return sds
@@ -159,25 +159,32 @@ def overlaps(
 
     # Precontract bra_mos, S_AO and ket_mos
     mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
+    mo_ovlp_det = np.linalg.det(mo_ovlps)
+    print(f"Determinant of MO-overlap matrix: {mo_ovlp_det:.10f}")
 
-    ovlps = dict()
+    sd_ovlps = dict()
+    # Calculate overlaps between SDs
     for (bra, ket) in unique_ovlps:
         bra_sign, bra_inds = slater_dets[("bra", bra)]
         ket_sign, ket_inds = slater_dets[("ket", ket)]
         ovlp_mat = mo_ovlps[bra_inds][:, ket_inds]
         ovlp_mat *= bra_sign * ket_sign
-        ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
+        sd_ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
+
+    for k, v in sd_ovlps.items():
+        print(k, v)
 
     state_inds = it.product(range(bra_ci.shape[0]), range(ket_ci.shape[0]))
     wf_ovlps = list()
-    none_none = ovlps[(None), (None)]
+    none_none = sd_ovlps[(None), (None)]
+    # import pdb; pdb.set_trace()
     for (i, j), a in zip(state_inds, per_state):
         bra_inds, ket_inds = zip(*a)
         bra_coeffs = np.array([bra_ci[i][bi] for bi in bra_inds])
         ket_coeffs = np.array([ket_ci[j][ki] for ki in ket_inds])
-        bra_none = np.array([ovlps[(bi, None)] for bi in bra_inds])
-        none_ket = np.array([ovlps[(None, ki)] for ki in ket_inds])
-        bra_ket = np.array([ovlps[_] for _ in a])
+        bra_none = np.array([sd_ovlps[(bi, None)] for bi in bra_inds])
+        none_ket = np.array([sd_ovlps[(None, ki)] for ki in ket_inds])
+        bra_ket = np.array([sd_ovlps[_] for _ in a])
         wf_ovlps.append(
             (
                 bra_coeffs * ket_coeffs * [none_none * bra_ket - bra_none * none_ket]

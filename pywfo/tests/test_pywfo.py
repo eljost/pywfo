@@ -7,7 +7,7 @@ from pywfo.main import overlaps, moovlp, moovlp_expl, moovlp_dots
 from pywfo.helpers import perturb_mat, get_dummy_mos
 
 
-np.set_printoptions(suppress=True, precision=6)
+np.set_printoptions(suppress=True, precision=8)
 
 
 def test_mo_overlaps():
@@ -147,8 +147,68 @@ def test_h2o2_wfoverlaps(this_dir):
         bra_ci,
         ket_ci,
         occ,
-        ci_thresh=1e-2,
+        # ci_thresh=1e-2,
+        ci_thresh=0.1,
         ao_ovlps="ket",
         with_gs=True,
     )
     print(ovlps)
+    ref_ovlps = np.load("ovlps_0.npy")
+    # np.testing.assert_allclose(ovlps, ref_ovlps)
+
+
+def test_simple():
+    """Wavefunction overlaps with dummy data."""
+
+    dim_ = 5
+    occ = 2
+    virt = dim_ - occ
+    states = 2
+
+    # Set up dummy MOs
+    bra_mos = get_dummy_mos(dim_, 20180325)
+    ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
+    ket_mos = ket_mos.T
+
+    print("Bra MOs")
+    print(bra_mos)
+    print("Ket MOs")
+    print(ket_mos)
+
+    # Dummy CI coefficients, two "steps", two states
+    cis_ = np.zeros((2, states, occ, virt))
+    # Bra
+    cis_[0, 0, 1, 0] = 1
+    cis_[0, 1, 1, 1] = 1
+
+    # Ket
+    cis_[1, 0, 1, 1] = 1
+    cis_[1, 1, 1, 0] = 1
+
+    print("CI coefficients")
+    print(cis_)
+
+    bra_ci, ket_ci = cis_
+
+    # Without GS
+    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
+    print("pywfo")
+    print(ovlps)
+    # ref_ovlps = np.array(((-0.0237519286, 0.9491140278), (0.9614129472, 0.0272071813)))
+    # np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
+
+    from pysisyphus.calculators.WFOWrapper import WFOWrapper
+    wfow = WFOWrapper(occ, virt, calc_number=1)
+    # wfow = WFOWrapper(occ, virt, calc_number=1, debug=True)
+
+    old_cycle = bra_mos, bra_ci
+    new_cycle = ket_mos, ket_ci
+    ref_ovlps = wfow.wf_overlap(old_cycle, new_cycle)
+    ref_ovlps = ref_ovlps[0]
+    ref_ovlps = ref_ovlps[1:,1:]
+    print("wfoverlap")
+    print(ref_ovlps)
+
+    # np.testing.assert_allclose(ovlps, ref_ovlps[1:, 1:])
+    print("Δ")
+    print(ovlps - ref_ovlps)
