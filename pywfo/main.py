@@ -4,9 +4,20 @@
 
 
 import itertools as it
+import logging
 
 import numba
 import numpy as np
+
+
+logger = logging.getLogger("pywfo")
+log_funcs = {
+    "info": logger.info,
+}
+
+
+def log(message, level="info"):
+    log_funcs[level](message)
 
 
 def moovlp(mos1, mos2, S_AO):
@@ -84,18 +95,25 @@ def overlaps(
     # Collect possible overlaps
     unique_ovlps = set()
     per_state = list()
-    for bra_state, ket_state in it.product(bra_ci, ket_ci):
+
+    def count_slater_dets(ci_coeffs, infix):
         # Select CI coefficients above the given threshold
+        # and drop first dimension (number of states)
+        _, *ci_above_thresh = np.nonzero(np.abs(ci_coeffs) > ci_thresh)
+        sds = set(tuple(zip(*ci_above_thresh)))
+        log(f"{len(sds)} {infix} SDs")
+        return sds
+
+    # Determine unique bra and ket-SDs
+    bra_sds = count_slater_dets(bra_ci, "bra")
+    ket_sds = count_slater_dets(ket_ci, "bra")
+
+    for bra_state, ket_state in it.product(bra_ci, ket_ci):
         bra_exc = [(f, t) for f, t in zip(*np.nonzero(np.abs(bra_state) > ci_thresh))]
         ket_exc = [(f, t) for f, t in zip(*np.nonzero(np.abs(ket_state) > ci_thresh))]
         combinations = tuple(it.product(bra_exc, ket_exc))
         per_state.append(combinations)
         unique_ovlps |= set(combinations)
-
-    # Determine unique bra and ket-SDs
-    bra_sds, ket_sds = zip(*unique_ovlps)
-    bra_sds = set(bra_sds)
-    ket_sds = set(ket_sds)
 
     bra_ovlps = set([(bra_sd, None) for bra_sd in bra_sds])
     ket_ovlps = set([(None, ket_sd) for ket_sd in ket_sds])
@@ -103,10 +121,10 @@ def overlaps(
     unique_ovlps |= ket_ovlps
     unique_ovlps |= {(None, None)}
 
-    print(f"bra SDs: {len(bra_sds)}")
-    print(f"ket SDs: {len(ket_sds)}")
-    print(f"SD pairs: {len(bra_sds)*len(ket_sds)}")
-    print(f"Unique overlaps: {len(unique_ovlps)}")
+    log(f"bra SDs: {len(bra_sds)}")
+    log(f"ket SDs: {len(ket_sds)}")
+    log(f"SD pairs: {len(bra_sds)*len(ket_sds)}")
+    log(f"Unique overlaps: {len(unique_ovlps)}")
 
     # Form the SDs by gathering appropriate MOs and determine their sign
     # after sorting. The SDs are sorted in a way, that the accepting orbital

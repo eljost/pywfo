@@ -136,12 +136,19 @@ def test_h2o2_wfoverlaps(this_dir):
     with h5py.File(this_dir / "h2o2_overlap_data.h5") as handle:
         mo_coeffs = handle["mo_coeffs"][:]
         ci_coeffs = handle["ci_coeffs"][:]
-    assert mo_coeffs.shape[0] == 2
 
     bra_mos, ket_mos = mo_coeffs
     bra_ci, ket_ci = ci_coeffs
-
     occ = bra_ci[0].shape[0]
 
-    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ, ao_ovlps="ket")
+    ovlps = overlaps(
+        bra_mos,
+        ket_mos,
+        bra_ci,
+        ket_ci,
+        occ,
+        ci_thresh=1e-2,
+        ao_ovlps="bra",
+        with_gs=True,
+    )
     print(ovlps)
