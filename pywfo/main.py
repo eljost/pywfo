@@ -75,7 +75,7 @@ def moovlp_dots(mos1, mos2, S_AO):
 
 
 def overlaps(
-    bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=0.001, with_gs=False, ao_ovlps="bra"
+    bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=0.001, with_gs=False, ao_ovlps="ket"
 ):
     assert bra_mos.shape == ket_mos.shape
     assert bra_ci.shape == ket_ci.shape

@@ -148,7 +148,7 @@ def test_h2o2_wfoverlaps(this_dir):
         ket_ci,
         occ,
         ci_thresh=1e-2,
-        ao_ovlps="bra",
+        ao_ovlps="ket",
         with_gs=True,
     )
     print(ovlps)
