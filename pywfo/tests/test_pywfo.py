@@ -170,10 +170,10 @@ def test_simple():
     ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
     ket_mos = ket_mos.T
 
-    print("Bra MOs")
-    print(bra_mos)
-    print("Ket MOs")
-    print(ket_mos)
+    # print("Bra MOs")
+    # print(bra_mos)
+    # print("Ket MOs")
+    # print(ket_mos)
 
     # Dummy CI coefficients, two "steps", two states
     cis_ = np.zeros((2, states, occ, virt))
@@ -185,13 +185,14 @@ def test_simple():
     cis_[1, 0, 1, 1] = 1
     cis_[1, 1, 1, 0] = 1
 
-    print("CI coefficients")
-    print(cis_)
+    # print("CI coefficients")
+    # print(cis_)
 
     bra_ci, ket_ci = cis_
 
+    from pywfo.main import overlaps_naive
     # Without GS
-    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
+    ovlps = overlaps_naive(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
     print("pywfo")
     print(ovlps)
     # ref_ovlps = np.array(((-0.0237519286, 0.9491140278), (0.9614129472, 0.0272071813)))
