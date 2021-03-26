@@ -2,7 +2,7 @@ import numpy as np
 
 
 def get_dummy_mos(num, seed=None):
-    """Dummy molecular orbital matrix.
+    """Dummy molecular orbital matrix, one MO per row.
 
     Orthogonalizes a matrix of random entries.
     """
