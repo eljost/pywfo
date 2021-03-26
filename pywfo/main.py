@@ -292,7 +292,7 @@ def overlaps_naive(
                 ij_increments.append(prefac_k ** 2 * ij_increment)
                 # ij_increments.append(prefac_k * ij_increment)
             ij_increments = np.array(ij_increments)
-            ovlps[i, j] = (2 * ci_coeffs_i * ci_coeffs_j * ij_increments).sum()
-            # ovlps[i, j] = (cii_sq * cij_sq * ij_increments).sum()
+            ovlps[i, j] = 2 * (ci_coeffs_i * ci_coeffs_j * ij_increments).sum()
+            # ovlps[i, j] = (ci_coeffs_i * ci_coeffs_j * ij_increments).sum()
             print()
     return ovlps
