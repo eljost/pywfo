@@ -178,7 +178,7 @@ def test_simple():
     # Dummy CI coefficients, two "steps", two states
     cis_ = np.zeros((2, states, occ, virt))
     # Bra
-    cis_[0, 0, 1, 0] = 1
+    cis_[0, 0, 1, 0] = 0.781
     cis_[0, 1, 1, 1] = 1
 
     # Ket
