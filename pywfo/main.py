@@ -332,7 +332,7 @@ def overlaps_naive(
     beta_ovlp = gs_ovlp
     print(f"GS ovlp: {gs_ovlp*gs_ovlp:.6f}")
 
-    def form_sd(inds):
+    def form_exc_inds(inds):
         from_, to = inds
         mo_inds_ = mo_inds.copy()
         # Delete particle orbital
@@ -345,11 +345,11 @@ def overlaps_naive(
 
     prefac = 1 / sqrt(2)
     def sds_from_restricted_tden(inds, ci_coeff):
-        sign, sd = form_sd(inds)
+        sign, exc_inds = form_exc_inds(inds)
         # Return plus and minus SD
         p_prefac = prefac * ci_coeff  # alpha excitation
         m_prefac = -prefac * ci_coeff  # beta excitation
-        return (p_prefac, sd, mo_inds), (m_prefac, mo_inds, sd)
+        return (p_prefac, exc_inds, mo_inds), (m_prefac, mo_inds, exc_inds)
 
     # Over all bra states
     for i, ci_i in enumerate(bra_ci):
@@ -378,14 +378,14 @@ def overlaps_naive(
             )
             # Over all SDs in the bra state
             for prefac_k, sd_k_a, sd_k_b in bra_prefac_sds:
+                print(f"sd_k: {sd_k_a}, {sd_k_b}, {prefac_k:.6f}")
                 # Over all SDs in the ket state
                 for prefac_l, sd_l_a, sd_l_b in ket_prefac_sds:
-                    print(f"sd_k: {sd_k_a}, {sd_k_b}, {prefac_k:.6f}")
                     print(f"sd_l: {sd_l_a}, {sd_l_b}, {prefac_l:.6f}")
                     alpha_ovlp_mat = mo_ovlps[sd_k_a][:, sd_l_a]
                     beta_ovlp_mat = mo_ovlps[sd_k_b][:, sd_l_b]
                     alpha_ovlp = prefac_k * prefac_l * np.linalg.det(alpha_ovlp_mat)
                     beta_ovlp = prefac_k * prefac_l * np.linalg.det(beta_ovlp_mat)
                     ovlps[i, j] += 2*alpha_ovlp * beta_ovlp
-                print()
+            print()
     return ovlps
