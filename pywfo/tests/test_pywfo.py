@@ -1,10 +1,15 @@
 import pytest
 
-import h5py
 import numpy as np
 
-from pywfo.main import overlaps, moovlp, moovlp_expl, moovlp_dots
-from pywfo.helpers import perturb_mat, get_dummy_mos
+from pywfo.main import moovlp, moovlp_expl, moovlp_dots
+from pywfo.main import overlaps_naive, overlaps_most_naive
+from pywfo.helpers import (
+    perturb_mat,
+    get_dummy_mos,
+    get_wfow_ref,
+    get_bra_ket_dummy_mos,
+)
 
 
 np.set_printoptions(suppress=True, precision=8)
@@ -52,164 +57,70 @@ def test_big_mo_overlaps():
     np.testing.assert_allclose(ovlps.flatten(), np.eye(dim_).flatten(), atol=1e-8)
 
 
-def test_dummy_wfoverlaps():
-    """Wavefunction overlaps with dummy data."""
-
-    dim_ = 4
-    occ = 2
-    virt = dim_ - occ
-    states = 2
-
-    # Set up dummy MOs
-    bra_mos = get_dummy_mos(dim_, 20180325)
-    ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
-    ket_mos = ket_mos.T
-
-    print("Bra MOs")
-    print(bra_mos)
-    print("Ket MOs")
-    print(ket_mos)
-
-    # Dummy CI coefficients
-    cis_ = np.zeros((2, states, occ, virt))
-    # Bra
-    cis_[0, 0, 1, 0] = 1
-    cis_[0, 1, 1, 1] = 1
-
-    # Ket
-    cis_[1, 0, 1, 1] = 1
-    cis_[1, 1, 1, 0] = 1
-
-    print("CI coefficients")
-    print(cis_)
-
-    bra_ci, ket_ci = cis_
-
-    # Without GS
-    ovlps = overlaps(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
-    ref_ovlps = np.array(((-0.0237519286, 0.9491140278), (0.9614129472, 0.0272071813)))
-    np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
-
-
 @pytest.mark.parametrize(
-    "ci_thresh, ref_ovlps",
+    "ovlp_func",
     [
-        # (0.5, (-0.000118, 0.751367, -0.463159, -0.000088)),
-        # (0.1, (-0.000117, 0.738117, -0.463159, -0.000088)),  # ~ 0.01 sec
-        # (1e-2, (-0.000137, 0.790922, -0.463159, -0.000088)),  # ~  0.2 sec
-        (7e-2, (-0.000119, 0.761295, -0.464277, -0.000089)),  # ref
-        # (5e-3, (-0.000137, 0.795608, -0.465939, -0.000092)),  # ~   1.28 sec
-        # (1e-3, (-0.000137, 0.799300, -0.465685, -0.000092)),  # ~  26.6 sec
+        overlaps_naive,
+        overlaps_most_naive,
     ],
 )
-def test_cytosin_wfoverlaps(ci_thresh, ref_ovlps, this_dir):
-    with h5py.File(this_dir / "ref_cytosin/cytosin_overlap_data.h5") as handle:
-        mo_coeffs = handle["mo_coeffs"][:]
-        ci_coeffs = handle["ci_coeffs"][:]
-    print(mo_coeffs.shape)
-    print(ci_coeffs.shape)
-    # Compare first and third step 0 and 2
-    bra = 0
-    ket = 2
-
-    bra_mos = mo_coeffs[bra]
-    ket_mos = mo_coeffs[ket]
-
-    bra_ci = ci_coeffs[bra]
-    ket_ci = ci_coeffs[ket]
-
-    occ = bra_ci[0].shape[0]
-
-    ovlps = overlaps(
-        bra_mos, ket_mos, bra_ci, ket_ci, occ, ci_thresh=ci_thresh, ao_ovlps="ket"
-    )
-    print(ovlps)
-    ref_ovlps = np.array(ref_ovlps).reshape(ovlps.shape)
-    np.testing.assert_allclose(ovlps, ref_ovlps, atol=2e-3)
-
-
-def test_h2o2_wfoverlaps(this_dir):
-    """H2O2, BP86/def2-SVP TD-DFT with 4 states.
-
-    Second geometry has slightly rotated dihedral.
-    """
-    with h5py.File(this_dir / "h2o2_overlap_data.h5") as handle:
-        mo_coeffs = handle["mo_coeffs"][:]
-        ci_coeffs = handle["ci_coeffs"][:]
-
-    bra_mos, ket_mos = mo_coeffs
-    bra_ci, ket_ci = ci_coeffs
-    occ = bra_ci[0].shape[0]
-
-    ovlps = overlaps(
-        bra_mos,
-        ket_mos,
-        bra_ci,
-        ket_ci,
-        occ,
-        # ci_thresh=1e-2,
-        ci_thresh=0.1,
-        ao_ovlps="ket",
-        with_gs=True,
-    )
-    print(ovlps)
-    ref_ovlps = np.load("ovlps_0.npy")
-    # np.testing.assert_allclose(ovlps, ref_ovlps)
-
-
-def test_simple():
-    """Wavefunction overlaps with dummy data."""
-
-    dim_ = 5
-    occ = 2
-    virt = dim_ - occ
-    states = 2
-
+def test_simple(ovlp_func):
     # Set up dummy MOs
-    bra_mos = get_dummy_mos(dim_, 20180325)
-    ket_mos, _ = np.linalg.qr(perturb_mat(bra_mos.T), mode="complete")
-    ket_mos = ket_mos.T
-
-    # print("Bra MOs")
-    # print(bra_mos)
-    # print("Ket MOs")
-    # print(ket_mos)
+    num = 2
+    occ = 1
+    virt, bra_mos, ket_mos = get_bra_ket_dummy_mos(num, occ, seed=20180325)
 
     # Dummy CI coefficients, two "steps", two states
+    states = 1
+    cis_ = np.zeros((2, states, occ, virt))
+    # Bra, state 0
+    cis_[0, 0, 0, 0] = 1
+    # Ket, state 0
+    cis_[1, 0, 0, 0] = 1
+    # Normalize
+    cis_norms = np.linalg.norm(cis_, axis=(2, 3))
+    cis_ /= cis_norms[:, :, None, None]
+
+    bra_ci, ket_ci = cis_
+
+    # Without GS
+    ovlps = ovlp_func(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
+
+    try:
+        ref_ovlps = get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci)
+        np.testing.assert_allclose(ovlps, ref_ovlps)
+    except:
+        assert ovlps[0][0] == pytest.approx(0.97008177)
+
+
+def test_more_virtual_mos():
+    # Dummy MOs
+    num = 4
+    occ = 2
+    virt, bra_mos, ket_mos = get_bra_ket_dummy_mos(num, occ, seed=20180325)
+
+    # Dummy CI coefficients
+    states = 2
     cis_ = np.zeros((2, states, occ, virt))
     # Bra
     cis_[0, 0, 1, 0] = 1
     cis_[0, 1, 1, 1] = 1
-
     # Ket
     cis_[1, 0, 1, 1] = 1
     cis_[1, 1, 1, 0] = 1
-
-    # print("CI coefficients")
-    # print(cis_)
+    # Normalize
+    cis_norms = np.linalg.norm(cis_, axis=(2, 3))
+    cis_ /= cis_norms[:, :, None, None]
 
     bra_ci, ket_ci = cis_
 
-    from pywfo.main import overlaps_naive
-    # Without GS
-    ovlps = overlaps_naive(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
-    print("pywfo")
-    print(ovlps)
-    # ref_ovlps = np.array(((-0.0237519286, 0.9491140278), (0.9614129472, 0.0272071813)))
-    # np.testing.assert_allclose(ovlps, ref_ovlps, atol=1e-5)
-
-    from pysisyphus.calculators.WFOWrapper import WFOWrapper
-    wfow = WFOWrapper(occ, virt, calc_number=1)
-    # wfow = WFOWrapper(occ, virt, calc_number=1, debug=True)
-
-    old_cycle = bra_mos, bra_ci
-    new_cycle = ket_mos, ket_ci
-    ref_ovlps = wfow.wf_overlap(old_cycle, new_cycle)
-    ref_ovlps = ref_ovlps[0]
-    ref_ovlps = ref_ovlps[1:,1:]
-    print("wfoverlap")
-    print(ref_ovlps)
-
-    # np.testing.assert_allclose(ovlps, ref_ovlps[1:, 1:])
-    print("Δ")
-    print(ovlps - ref_ovlps)
+    ovlps = overlaps_most_naive(
+        bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False
+    )
+    try:
+        ref_ovlps = get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci)
+    except:
+        ref_ovlps = np.array((0.11025145, 0.97114924, 0.97595963, -0.09630209)).reshape(
+            -1, 2
+        )
+    np.testing.assert_allclose(ovlps, ref_ovlps)
