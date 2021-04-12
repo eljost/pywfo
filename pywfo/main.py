@@ -3,6 +3,7 @@
 #     Plasser, 2016
 
 
+import functools
 import itertools as it
 import logging
 from math import sqrt
@@ -84,7 +85,6 @@ def overlaps(
     ket_ci,
     occ,
     ci_thresh=1e-4,
-    with_gs=True,
     ao_ovlps="ket",
 ):
     assert bra_mos.shape == ket_mos.shape
@@ -163,8 +163,8 @@ def overlaps(
     # TODO: precompute minors
 
     # Precontract bra_mos, S_AO and ket_mos
-    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
-    mo_ovlp_det = np.linalg.det(mo_ovlps)
+    S_MO = bra_mos.dot(S_AO).dot(ket_mos.T)
+    mo_ovlp_det = np.linalg.det(S_MO)
     print(f"Determinant of MO-overlap matrix: {mo_ovlp_det:.10f}")
 
     sd_ovlps = dict()
@@ -172,7 +172,7 @@ def overlaps(
     for (bra, ket) in unique_ovlps:
         bra_sign, bra_inds = slater_dets[("bra", bra)]
         ket_sign, ket_inds = slater_dets[("ket", ket)]
-        ovlp_mat = mo_ovlps[bra_inds][:, ket_inds]
+        ovlp_mat = S_MO[bra_inds][:, ket_inds]
         ovlp_mat *= bra_sign * ket_sign
         sd_ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
 
@@ -206,7 +206,6 @@ def overlaps_naive(
     ket_ci,
     occ,
     ci_thresh=1e-4,
-    with_gs=True,
     ao_ovlps="ket",
 ):
     if isinstance(ao_ovlps, str):
@@ -218,8 +217,8 @@ def overlaps_naive(
         raise Exception("Invalid AO overlaps!")
 
     # MO overlaps
-    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
-    mo_ovlp_det = np.linalg.det(mo_ovlps)
+    S_MO = bra_mos.dot(S_AO).dot(ket_mos.T)
+    mo_ovlp_det = np.linalg.det(S_MO)
     print(f"Determinant of MO-overlap matrix: {mo_ovlp_det:.10f}")
 
     def above_thresh(ci_coeffs):
@@ -228,10 +227,10 @@ def overlaps_naive(
     ovlps = np.zeros((bra_ci.shape[0], ket_ci.shape[0]))
 
     # Overlap of the GS configurations
-    # ovlp_mat = mo_ovlps[bra_inds][:, ket_inds]
+    # ovlp_mat = S_MO[bra_inds][:, ket_inds]
     # sd_ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
     mo_inds = list(range(occ))
-    gs_ovlp = np.linalg.det(mo_ovlps[mo_inds][:, mo_inds])
+    gs_ovlp = np.linalg.det(S_MO[mo_inds][:, mo_inds])
     beta_ovlp = gs_ovlp
     print(f"GS ovlp: {gs_ovlp*gs_ovlp:.6f}")
 
@@ -287,8 +286,8 @@ def overlaps_naive(
                 for prefac_l, sd_l_a, sd_l_b in ket_prefac_sds:
                     pfl.append(prefac_k)
                     print(f"sd_l: {sd_l_a}, {sd_l_b}, {prefac_l:.6f}")
-                    alpha_ovlp_mat = mo_ovlps[sd_k_a][:, sd_l_a]
-                    beta_ovlp_mat = mo_ovlps[sd_k_b][:, sd_l_b]
+                    alpha_ovlp_mat = S_MO[sd_k_a][:, sd_l_a]
+                    beta_ovlp_mat = S_MO[sd_k_b][:, sd_l_b]
                     alpha_ovlp = prefac_l * np.linalg.det(alpha_ovlp_mat)
                     beta_ovlp = prefac_l * np.linalg.det(beta_ovlp_mat)
                     ij_increment += alpha_ovlp * beta_ovlp
@@ -299,16 +298,7 @@ def overlaps_naive(
     return ovlps
 
 
-def overlaps_naive(
-    bra_mos,
-    ket_mos,
-    bra_ci,
-    ket_ci,
-    occ,
-    ci_thresh=1e-4,
-    with_gs=True,
-    ao_ovlps="ket",
-):
+def get_S_AO(bra_mos, ket_mos, ao_ovlps):
     if isinstance(ao_ovlps, str):
         inv = np.linalg.inv({"bra": bra_mos, "ket": ket_mos}[ao_ovlps])
         S_AO = inv.dot(inv.T)
@@ -318,13 +308,26 @@ def overlaps_naive(
         raise Exception("Invalid AO overlaps!")
     print("S_AO")
     print(S_AO)
+    return S_AO
+
+
+def overlaps_naive(
+    bra_mos,
+    ket_mos,
+    bra_ci,
+    ket_ci,
+    occ,
+    ci_thresh=1e-4,
+    ao_ovlps="ket",
+):
+    S_AO = get_S_AO(bra_mos, ket_mos, ao_ovlps)
 
     # MO overlaps
-    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
-    moo_str = np.array2string(mo_ovlps, precision=4)
+    S_MO = bra_mos.dot(S_AO).dot(ket_mos.T)
+    moo_str = np.array2string(S_MO, precision=4)
     print("MO Overlaps")
     print(moo_str)
-    mo_ovlp_det = np.linalg.det(mo_ovlps)
+    mo_ovlp_det = np.linalg.det(S_MO)
     print(f"Determinant of MO-overlap matrix: {mo_ovlp_det:.10f}")
 
     def above_thresh(ci_coeffs):
@@ -333,31 +336,12 @@ def overlaps_naive(
     ovlps = np.zeros((bra_ci.shape[0], ket_ci.shape[0]))
 
     # Overlap of the GS configurations
-    # ovlp_mat = mo_ovlps[bra_inds][:, ket_inds]
+    # ovlp_mat = S_MO[bra_inds][:, ket_inds]
     # sd_ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
     mo_inds = list(range(occ))
-    gs_ovlp = np.linalg.det(mo_ovlps[mo_inds][:, mo_inds])
+    gs_ovlp = np.linalg.det(S_MO[mo_inds][:, mo_inds])
     beta_ovlp = gs_ovlp
     print(f"GS ovlp: {gs_ovlp*gs_ovlp:.6f}")
-
-    def form_exc_inds(inds):
-        from_, to = inds
-        exc_inds = mo_inds.copy()
-        # Delete particle orbital
-        exc_inds.remove(from_)
-        # Add hole orbital
-        exc_inds.append(to + occ)
-        # Exchanging two electrons flips the sign of the determinant
-        sign = -1
-        return sign, exc_inds
-
-    prefac = 1 / sqrt(2)
-
-    def sds_from_restricted_tden(inds, ci_coeff):
-        sign, exc_inds = form_exc_inds(inds)
-        # Return plus and minus SD
-        prefac_ = prefac * ci_coeff
-        return (prefac_, exc_inds, mo_inds), (-prefac_, mo_inds, exc_inds)
 
     def form_exc_inds(inds):
         from_, to = inds
@@ -416,8 +400,8 @@ def overlaps_naive(
                 # Over all SDs in ket state
                 for prefac_l, sd_l_a, sd_l_b in ket_prefac_sds:
                     print(f"sd_l: {sd_l_a}, {sd_l_b}, {prefac_l:.6f}")
-                    alpha_ovlp_mat = mo_ovlps[sd_k_a][:, sd_l_a]
-                    beta_ovlp_mat = mo_ovlps[sd_k_b][:, sd_l_b]
+                    alpha_ovlp_mat = S_MO[sd_k_a][:, sd_l_a]
+                    beta_ovlp_mat = S_MO[sd_k_b][:, sd_l_b]
                     alpha_ovlp = np.linalg.det(alpha_ovlp_mat)
                     beta_ovlp = np.linalg.det(beta_ovlp_mat)
                     print(
@@ -442,25 +426,16 @@ def overlaps_most_naive(
     ket_ci,
     occ,
     ci_thresh=1e-4,
-    with_gs=True,
     ao_ovlps="ket",
 ):
-    if isinstance(ao_ovlps, str):
-        inv = np.linalg.inv({"bra": bra_mos, "ket": ket_mos}[ao_ovlps])
-        S_AO = inv.dot(inv.T)
-    elif isinstance(ao_ovlps, np.array):
-        S_AO = ao_ovlps
-    else:
-        raise Exception("Invalid AO overlaps!")
-    print("S_AO")
-    print(S_AO)
+    S_AO = get_S_AO(bra_mos, ket_mos, ao_ovlps)
 
     # MO overlaps
-    mo_ovlps = bra_mos.dot(S_AO).dot(ket_mos.T)
-    moo_str = np.array2string(mo_ovlps, precision=4)
+    S_MO = bra_mos.dot(S_AO).dot(ket_mos.T)
+    moo_str = np.array2string(S_MO, precision=4)
     print("MO Overlaps")
     print(moo_str)
-    mo_ovlp_det = np.linalg.det(mo_ovlps)
+    mo_ovlp_det = np.linalg.det(S_MO)
     print(f"Determinant of MO-overlap matrix: {mo_ovlp_det:.10f}")
 
     def above_thresh(ci_coeffs):
@@ -470,7 +445,7 @@ def overlaps_most_naive(
 
     # Overlap of the GS configurations
     mo_inds = list(range(occ))
-    gs_ovlp = np.linalg.det(mo_ovlps[mo_inds][:, mo_inds])
+    gs_ovlp = np.linalg.det(S_MO[mo_inds][:, mo_inds])
     beta_ovlp = gs_ovlp
     print(f"GS ovlp: {gs_ovlp*gs_ovlp:.6f}")
 
@@ -526,8 +501,8 @@ def overlaps_most_naive(
                 # Over all SDs in ket state
                 for prefac_l, sd_l_a, sd_l_b in ket_prefac_sds:
                     print(f"\tsd_l: {sd_l_a}, {sd_l_b}, {prefac_l:.6f}")
-                    alpha_ovlp_mat = mo_ovlps[sd_k_a][:, sd_l_a]
-                    beta_ovlp_mat = mo_ovlps[sd_k_b][:, sd_l_b]
+                    alpha_ovlp_mat = S_MO[sd_k_a][:, sd_l_a]
+                    beta_ovlp_mat = S_MO[sd_k_b][:, sd_l_b]
                     alpha_ovlp = np.linalg.det(alpha_ovlp_mat)
                     beta_ovlp = np.linalg.det(beta_ovlp_mat)
                     print(
@@ -539,4 +514,114 @@ def overlaps_most_naive(
             print("ij", ij)
             ovlps[i, j] = ij
             print()
+    return ovlps
+
+
+def overlaps_cache(
+    bra_mos,
+    ket_mos,
+    bra_ci,
+    ket_ci,
+    occ,
+    ci_thresh=1e-4,
+    ao_ovlps="ket",
+):
+    S_AO = get_S_AO(bra_mos, ket_mos, ao_ovlps)
+
+    # MO overlaps
+    S_MO = bra_mos.dot(S_AO).dot(ket_mos.T)
+    moo_str = np.array2string(S_MO, precision=4)
+    print("MO Overlaps")
+    print(moo_str)
+    mo_ovlp_det = np.linalg.det(S_MO)
+    print(f"Determinant of MO-overlap matrix: {mo_ovlp_det:.10f}")
+
+    def above_thresh(ci_coeffs):
+        return np.nonzero(np.abs(ci_coeffs) >= ci_thresh)
+
+    ovlps = np.zeros((bra_ci.shape[0], ket_ci.shape[0]))
+
+    # Overlap of the GS configurations
+    # ovlp_mat = S_MO[bra_inds][:, ket_inds]
+    # sd_ovlps[(bra, ket)] = np.linalg.det(ovlp_mat)
+    mo_inds = list(range(occ))
+    gs_ovlp = np.linalg.det(S_MO[mo_inds][:, mo_inds])
+    beta_ovlp = gs_ovlp
+    print(f"GS ovlp: {gs_ovlp*gs_ovlp:.6f}")
+
+    prefac = 1 / sqrt(2)
+
+    def sds_from_restricted_tden(inds, ci_coeff):
+        prefac_ = prefac * ci_coeff
+        # Return +alpha excitation and -beta excitation. The -beta SD
+        # is resorted once and again changes its sign.
+        tpl = tuple(inds)
+        print(prefac_)
+        return (prefac_, tpl, None), (prefac_, None, tpl)
+
+    log(f"Bra states: {bra_ci.shape[0]}")
+    log(f"Ket states: {ket_ci.shape[0]}")
+
+    def form_exc_inds(inds):
+        try:
+            from_, to = inds
+        except TypeError:
+            return mo_inds
+        exc_inds = mo_inds.copy()
+        # Delete particle orbital
+        exc_inds.remove(from_)
+        # Add hole orbital
+        exc_inds.append(to + occ)
+        # Exchanging two electrons flips the sign of the determinant
+        return exc_inds
+
+
+    @functools.cache
+    def sd_ovlp(sd_k, sd_l):
+        mo_inds_k = form_exc_inds(sd_k)
+        mo_inds_l = form_exc_inds(sd_l)
+        mo_ovlp_mat = S_MO[mo_inds_k][:, mo_inds_l]
+        det = np.linalg.det(mo_ovlp_mat)
+        return det
+
+    fmt = " .6f"
+    # Over all bra states
+    for i, ci_i in enumerate(bra_ci):
+        i_above = above_thresh(ci_i)
+        bra_prefac_sds = list(
+            it.chain(
+                *[
+                    sds_from_restricted_tden(sd_k, ci_coeff)
+                    for *sd_k, ci_coeff in zip(*i_above, ci_i[i_above])
+                ]
+            )
+        )
+        # Over all ket states
+        for j, ci_j in enumerate(ket_ci):
+            j_above = above_thresh(ci_j)
+            # Don't use iterator here, as we must iterate multiple times
+            # over this list
+            ket_prefac_sds = list(
+                it.chain(
+                    *[
+                        sds_from_restricted_tden(sd_l, ci_coeff)
+                        for *sd_l, ci_coeff in zip(*j_above, ci_j[j_above])
+                    ]
+                )
+            )
+            # Over all SDs in bra state
+            ij_increments = list()
+            pfk = list()
+            for prefac_k, sd_k_a, sd_k_b in bra_prefac_sds:
+                pfk.append(prefac_k)
+                ij_increment = 0.0
+                # Over all SDs in ket state
+                for prefac_l, sd_l_a, sd_l_b in ket_prefac_sds:
+                    alpha_ovlp = sd_ovlp(sd_k_a, sd_l_a)
+                    beta_ovlp = sd_ovlp(sd_k_b, sd_l_b)
+                    ij_increment += prefac_l * alpha_ovlp * beta_ovlp
+                ij_increments.append(ij_increment)
+            ij_increments = np.array(ij_increments)
+            pfk = np.array(pfk)
+            ovlps[i, j] = (pfk * ij_increments).sum()
     return ovlps

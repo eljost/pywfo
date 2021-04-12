@@ -33,13 +33,13 @@ def get_bra_ket_dummy_mos(num, occ, seed=None):
     return virt, bra_mos, ket_mos
 
 
-def get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci, ref_fn=None):
+def get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci, ref_fn=None, **wfow_kwargs):
     try:
         from pysisyphus.calculators.WFOWrapper import WFOWrapper
 
         occ, virt = bra_ci.shape[-2:]
 
-        wfow = WFOWrapper(occ, virt, calc_number=1)
+        wfow = WFOWrapper(occ, virt, calc_number=1, **wfow_kwargs)
         old_cycle = bra_mos, bra_ci
         new_cycle = ket_mos, ket_ci
         ref_ovlps = wfow.wf_overlap(old_cycle, new_cycle)

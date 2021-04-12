@@ -1,9 +1,9 @@
+import h5py
+import numpy as np
 import pytest
 
-import numpy as np
-
 from pywfo.main import moovlp, moovlp_expl, moovlp_dots
-from pywfo.main import overlaps_naive, overlaps_most_naive
+from pywfo.main import overlaps_naive, overlaps_most_naive, overlaps_cache
 from pywfo.helpers import (
     perturb_mat,
     get_dummy_mos,
@@ -62,6 +62,7 @@ def test_big_mo_overlaps():
     [
         overlaps_naive,
         overlaps_most_naive,
+        overlaps_cache,
     ],
 )
 def test_simple(ovlp_func):
@@ -84,7 +85,7 @@ def test_simple(ovlp_func):
     bra_ci, ket_ci = cis_
 
     # Without GS
-    ovlps = ovlp_func(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False)
+    ovlps = ovlp_func(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ)
 
     try:
         ref_ovlps = get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci)
@@ -114,13 +115,42 @@ def test_more_virtual_mos():
 
     bra_ci, ket_ci = cis_
 
-    ovlps = overlaps_most_naive(
-        bra_mos, ket_mos, bra_ci, ket_ci, occ=occ, with_gs=False
-    )
+    ovlps = overlaps_most_naive(bra_mos, ket_mos, bra_ci, ket_ci, occ=occ)
     try:
         ref_ovlps = get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci)
     except:
         ref_ovlps = np.array((0.11025145, 0.97114924, 0.97595963, -0.09630209)).reshape(
             -1, 2
         )
+    np.testing.assert_allclose(ovlps, ref_ovlps)
+
+
+def test_h2o2(this_dir):
+    """H2O2, BP86/def2-SVP TD-DFT with 4 states.
+
+    Second geometry has slightly rotated dihedral.
+    """
+    with h5py.File(this_dir / "h2o2_overlap_data.h5") as handle:
+        mo_coeffs = handle["mo_coeffs"][:]
+        ci_coeffs = handle["ci_coeffs"][:]
+
+    bra_mos, ket_mos = mo_coeffs
+    bra_ci, ket_ci = ci_coeffs
+    bra_ci = bra_ci[0, :, :].reshape(1, -1, 29)
+    ket_ci = ket_ci[0, :, :].reshape(1, -1, 29)
+    occ = bra_ci[0].shape[0]
+    ci_thresh = 3e-2  # 3e-2 still works, 2e-2 breaks
+
+    # ovlps = overlaps_naive(
+    ovlps = overlaps_cache(
+        bra_mos,
+        ket_mos,
+        bra_ci,
+        ket_ci,
+        occ,
+        ci_thresh=ci_thresh,
+        ao_ovlps="ket",
+    )
+    print(ovlps)
+    ref_ovlps = get_wfow_ref(bra_mos, ket_mos, bra_ci, ket_ci, conf_thresh=ci_thresh)
     np.testing.assert_allclose(ovlps, ref_ovlps)
